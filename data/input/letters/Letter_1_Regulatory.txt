@@ -1,0 +1,42 @@
+[Date]
+
+Important: Changes to your account terms and conditions
+
+Customer Name
+Address Line 1
+Address Line 2
+Postcode
+
+Dear [Customer Name],
+
+Notification of changes to your current account terms and conditions
+
+We are writing to inform you of important changes to the terms and conditions of your [Account Name] with Lloyds Bank (account number: [XXXXXX]). These changes will take effect on [Effective Date], in accordance with clause [X] of your current account agreement and in line with our obligations under the Payment Services Regulations 2017.
+
+Summary of changes
+
+From [Effective Date], we are:
+- Changing the way we calculate overdraft interest: Interest will be calculated using a daily rate based on the end-of-day balance, rather than on the average monthly balance.
+- Revising the fees associated with unpaid transactions: The fee for returning an unpaid Direct Debit or standing order will increase from 5 GBP to 7.50 GBP.
+- Updating your rights to cancel certain transactions: You will now be able to cancel a future-dated payment up until 11.59pm the day before it is due to be processed.
+
+Full details of the changes and an updated copy of the terms and conditions are enclosed with this letter.
+
+Why this is happening
+
+We are making these changes to ensure our account structure remains compliant with updated industry guidance and to improve the transparency of our fee and interest structures.
+
+What you need to do
+
+You do not need to take any action if you are happy with the changes. However, if you do not accept the updated terms, you have the right to close your account without charge before the changes take effect.
+
+If you continue to use your account after the changes come into effect, you will be deemed to have accepted the new terms.
+
+Need help or more information?
+
+If you have any questions about these changes or how they may affect you, please call us on [Customer Services Number], visit lloydsbank.com/termsupdate, or speak to a member of staff in any of our branches.
+
+Yours sincerely,
+[Name]
+Head of Customer Operations
+Lloyds Bank
