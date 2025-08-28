@@ -136,89 +136,251 @@ def check_content_completeness(original_points, personalized_content):
     return validated_points
 
 def analyze_personalization(customer):
-    """Generate detailed personalization analysis"""
+    """Generate comprehensive personalization analysis using ALL customer data"""
     factors = []
     
-    # Language & Cultural
+    # 1. LANGUAGE & CULTURAL
     lang = customer.get('preferred_language', 'English')
     if lang != 'English':
         factors.append({
             'category': 'LANGUAGE',
             'factor': f'Full translation to {lang}',
-            'detail': f'Content adapted for {lang} speakers with cultural norms',
+            'detail': f'Complete content adaptation for {lang} speakers with appropriate cultural norms and local banking terminology',
             'importance': 'HIGH'
         })
     
-    # Age-based tone
+    # 2. AGE-BASED COMMUNICATION STYLE
     age = customer.get('age', 0)
     if isinstance(age, (int, float)) and age > 0:
         if age < 30:
             factors.append({
                 'category': 'TONE',
-                'factor': 'Modern, casual communication',
-                'detail': f'Age {age}: Contemporary language, shorter sentences',
+                'factor': 'Modern, digital-native communication',
+                'detail': f'Age {age}: Contemporary language, brief sentences, app-first approach, emoji-appropriate for digital channels',
                 'importance': 'HIGH'
             })
-        elif age > 65:
+        elif age > 60:
             factors.append({
                 'category': 'TONE',
-                'factor': 'Formal, respectful communication',
-                'detail': f'Age {age}: Traditional salutation, clear explanations',
+                'factor': 'Traditional, respectful communication',
+                'detail': f'Age {age}: Formal salutation (Mr/Mrs), detailed explanations, avoiding technical jargon, larger font suggestions',
                 'importance': 'HIGH'
             })
+        else:
+            factors.append({
+                'category': 'TONE',
+                'factor': 'Professional yet approachable',
+                'detail': f'Age {age}: Balanced formality, clear but not patronizing, mix of digital and traditional options',
+                'importance': 'MEDIUM'
+            })
     
-    # Digital sophistication
+    # 3. DIGITAL ENGAGEMENT LEVEL
     digital = customer.get('digital_logins_per_month', 0)
+    app_usage = customer.get('mobile_app_usage', 'Unknown')
+    
     if digital > 20:
         factors.append({
             'category': 'CHANNEL',
-            'factor': 'Digital-first approach',
-            'detail': f'{digital} logins/month: Emphasizing app features',
+            'factor': 'Heavy digital user optimization',
+            'detail': f'{digital} logins/month + {app_usage} app use: Push notifications prioritized, self-service features highlighted, QR codes for quick actions',
             'importance': 'HIGH'
         })
     elif digital < 5:
         factors.append({
             'category': 'CHANNEL',
-            'factor': 'Traditional support emphasis',
-            'detail': f'{digital} logins/month: Phone and branch support',
+            'factor': 'Traditional banking preference',
+            'detail': f'Only {digital} logins/month: Branch locations emphasized, phone support prominent, printed materials offered, step-by-step guidance',
             'importance': 'HIGH'
         })
+    else:
+        factors.append({
+            'category': 'CHANNEL',
+            'factor': 'Hybrid user approach',
+            'detail': f'{digital} logins/month: Both digital and traditional options presented equally',
+            'importance': 'MEDIUM'
+        })
     
-    # Financial situation
+    # 4. EMAIL ENGAGEMENT PATTERN
+    email_opens = customer.get('email_opens_per_month', 0)
+    if email_opens > 15:
+        factors.append({
+            'category': 'ENGAGEMENT',
+            'factor': 'High email engagement',
+            'detail': f'{email_opens} opens/month: Detailed content welcomed, multiple touchpoints effective, newsletter subscriptions likely valued',
+            'importance': 'MEDIUM'
+        })
+    elif email_opens < 5:
+        factors.append({
+            'category': 'ENGAGEMENT',
+            'factor': 'Low email engagement',
+            'detail': f'{email_opens} opens/month: Keep emails brief and critical only, subject lines must be compelling, consider alternative channels',
+            'importance': 'MEDIUM'
+        })
+    
+    # 5. FINANCIAL SITUATION & OPPORTUNITIES
     balance = customer.get('account_balance', 0)
-    if balance > 10000:
+    income = customer.get('income_level', 'Unknown')
+    transactions = customer.get('recent_transactions', 0)
+    
+    if balance > 20000:
         factors.append({
             'category': 'FINANCIAL',
-            'factor': 'Premium customer treatment',
-            'detail': f'£{balance:,} balance: Premium services mentioned',
+            'factor': 'High-value customer treatment',
+            'detail': f'£{balance:,} balance + {income} income + {transactions} transactions: Premier banking eligibility, wealth management options, exclusive rates mentioned',
             'importance': 'HIGH'
         })
     elif balance < 1000:
         factors.append({
             'category': 'FINANCIAL',
-            'factor': 'Financial support focus',
-            'detail': f'£{balance:,} balance: Support services emphasized',
+            'factor': 'Financial support emphasis',
+            'detail': f'£{balance:,} balance: Fee waiver options highlighted, budgeting tools promoted, financial wellbeing resources, overdraft alternatives',
             'importance': 'HIGH'
         })
-    
-    # Life events
-    events = customer.get('recent_life_events', 'None')
-    if events and events.lower() not in ['none', 'n/a', '']:
+    else:
         factors.append({
-            'category': 'LIFE EVENT',
-            'factor': f'{events} acknowledgment',
-            'detail': f'Personalized reference to {events}',
+            'category': 'FINANCIAL',
+            'factor': 'Standard banking tier',
+            'detail': f'£{balance:,} balance: Growth opportunities mentioned, savings account suggestions',
+            'importance': 'LOW'
+        })
+    
+    # 6. LIFE EVENTS ACKNOWLEDGMENT
+    events = customer.get('recent_life_events', 'None')
+    if events and events.lower() not in ['none', 'n/a', '', 'unknown']:
+        event_responses = {
+            'marriage': 'Joint account options, name change services, combined financial planning',
+            'baby': 'Junior ISA information, child trust fund, family insurance products',
+            'bereavement': 'Compassionate tone, extended deadlines, dedicated bereavement team contact',
+            'job': 'Income protection options, mortgage pre-approval, career-related banking services',
+            'retirement': 'Pension services, senior account benefits, estate planning',
+            'house': 'Mortgage products, home insurance, moving home checklist'
+        }
+        
+        for key, response in event_responses.items():
+            if key in events.lower():
+                factors.append({
+                    'category': 'LIFE EVENT',
+                    'factor': f'{events} acknowledgment',
+                    'detail': response,
+                    'importance': 'HIGH'
+                })
+                break
+        else:
+            factors.append({
+                'category': 'LIFE EVENT',
+                'factor': f'{events} acknowledgment',
+                'detail': f'Personalized reference and relevant services for {events}',
+                'importance': 'MEDIUM'
+            })
+    
+    # 7. CUSTOMER LOYALTY & TENURE
+    years = customer.get('years_with_bank', 0)
+    if years > 10:
+        factors.append({
+            'category': 'LOYALTY',
+            'factor': f'Long-term customer ({years} years)',
+            'detail': 'Loyalty acknowledgment, exclusive long-term customer benefits, priority service eligibility',
+            'importance': 'HIGH'
+        })
+    elif years > 5:
+        factors.append({
+            'category': 'LOYALTY',
+            'factor': f'Established customer ({years} years)',
+            'detail': 'Relationship appreciation, upgrade opportunities highlighted',
+            'importance': 'MEDIUM'
+        })
+    elif years <= 1:
+        factors.append({
+            'category': 'LOYALTY',
+            'factor': 'New customer',
+            'detail': 'Welcome offers, onboarding support, getting started guides',
             'importance': 'MEDIUM'
         })
     
-    # Accessibility
+    # 8. SUPPORT NEEDS
+    requires_support = customer.get('requires_support', False)
     accessibility = customer.get('accessibility_needs', 'None')
-    if accessibility and accessibility.lower() not in ['none', 'n/a', '', 'null']:
+    
+    if requires_support or (accessibility and accessibility.lower() not in ['none', 'n/a', '', 'null']):
         factors.append({
-            'category': 'ACCESSIBILITY',
-            'factor': f'Adaptation for: {accessibility}',
-            'detail': 'Simpler language, alternative formats offered',
+            'category': 'SUPPORT',
+            'factor': f'Enhanced support required',
+            'detail': f'Accessibility: {accessibility}, Support needed: {requires_support} - Simplified language, larger fonts offered, dedicated support line, alternative formats available',
             'importance': 'HIGH'
+        })
+    
+    # 9. CONTACT PREFERENCES
+    phone_calls = customer.get('phone_calls_per_month', 0)
+    branch_visits = customer.get('branch_visits_per_month', 0)
+    
+    if phone_calls > 3:
+        factors.append({
+            'category': 'CONTACT',
+            'factor': f'Phone preference ({phone_calls} calls/month)',
+            'detail': 'Callback services offered, direct line numbers provided, phone banking emphasized',
+            'importance': 'MEDIUM'
+        })
+    
+    if branch_visits > 2:
+        factors.append({
+            'category': 'CONTACT',
+            'factor': f'Branch visitor ({branch_visits} visits/month)',
+            'detail': 'Nearest branch location highlighted, appointment booking offered, in-person service benefits mentioned',
+            'importance': 'MEDIUM'
+        })
+    
+    # 10. ACCOUNT TYPE SPECIFIC
+    account_type = customer.get('account_type', 'Unknown')
+    if account_type and account_type != 'Unknown':
+        factors.append({
+            'category': 'ACCOUNT',
+            'factor': f'{account_type} account holder',
+            'detail': f'Specific features and benefits for {account_type} account highlighted, upgrade paths shown',
+            'importance': 'LOW'
+        })
+    
+    # 11. EMPLOYMENT STATUS
+    employment = customer.get('employment_status', 'Unknown')
+    if employment.lower() == 'self-employed':
+        factors.append({
+            'category': 'EMPLOYMENT',
+            'factor': 'Self-employed customer',
+            'detail': 'Business banking options, tax season support, flexible overdraft mentioned',
+            'importance': 'MEDIUM'
+        })
+    elif employment.lower() == 'retired':
+        factors.append({
+            'category': 'EMPLOYMENT',
+            'factor': 'Retired customer',
+            'detail': 'Fixed income considerations, pension services, senior benefits highlighted',
+            'importance': 'MEDIUM'
+        })
+    elif employment.lower() == 'student':
+        factors.append({
+            'category': 'EMPLOYMENT',
+            'factor': 'Student customer',
+            'detail': 'Student account benefits, overdraft options, financial education resources',
+            'importance': 'MEDIUM'
+        })
+    
+    # 12. FAMILY SITUATION
+    family = customer.get('family_status', 'Unknown')
+    if 'children' in family.lower():
+        factors.append({
+            'category': 'FAMILY',
+            'factor': 'Parent/Family account holder',
+            'detail': 'Family financial products, children savings accounts, family insurance mentioned',
+            'importance': 'LOW'
+        })
+    
+    # 13. DIGITAL PREFERENCE FLAG
+    prefers_digital = customer.get('prefers_digital', False)
+    if prefers_digital:
+        factors.append({
+            'category': 'PREFERENCE',
+            'factor': 'Digital-first preference confirmed',
+            'detail': 'Paperless options emphasized, digital signatures offered, app features prioritized',
+            'importance': 'MEDIUM'
         })
     
     return factors
