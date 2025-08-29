@@ -36,5 +36,23 @@ For rapid development testing:
 
 For issues or questions, please contact the development team or raise an issue on GitHub.
 
+
+## 🎙️ Voice Note Generation (NEW)
+
+The system now includes AI-powered voice note generation using OpenAI's TTS API.
+
+### Features
+- Automatic voice note generation for digitally-active customers
+- Multi-language support with appropriate voice selection
+- Rules-based eligibility (no hardcoding)
+- Real MP3 audio file generation
+
+### Setup
+1. Add your OpenAI API key to `.env`
+2. Run `.\setup_voice.ps1`
+3. Test with `python src\voice_integration.py --test-rules`
+
+See [VOICE_NOTES_README.md](VOICE_NOTES_README.md) for detailed documentation.
+
 ---
 (C) 2025 Lloyds Banking Group
