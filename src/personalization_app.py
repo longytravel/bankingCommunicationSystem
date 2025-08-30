@@ -99,6 +99,145 @@ def classify_document(letter_text: str) -> str:
     else:
         return 'INFORMATIONAL'
 
+def analyze_personalization(customer: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Analyze customer profile to determine personalization factors
+    Returns detailed analysis of WHY content was personalized
+    """
+    factors = {
+        'primary_factors': [],
+        'channel_preferences': [],
+        'tone_adjustments': [],
+        'special_considerations': [],
+        'personalization_score': 0
+    }
+    
+    # Age-based analysis
+    age = customer.get('age', 'unknown')
+    if age != 'unknown':
+        age_val = int(age) if isinstance(age, (int, str)) and str(age).isdigit() else 0
+        if age_val > 60:
+            factors['primary_factors'].append("👴 Senior customer (60+) - Formal tone, clear explanations")
+            factors['tone_adjustments'].append("Respectful and formal communication style")
+            factors['personalization_score'] += 15
+        elif age_val < 35:
+            factors['primary_factors'].append("👦 Young customer (<35) - Modern, conversational tone")
+            factors['tone_adjustments'].append("Casual and engaging communication style")
+            factors['personalization_score'] += 15
+        else:
+            factors['primary_factors'].append("👤 Middle-aged customer - Professional tone")
+            factors['tone_adjustments'].append("Balanced professional communication")
+            factors['personalization_score'] += 10
+    
+    # Digital engagement analysis
+    digital_logins = customer.get('digital_logins_per_month', 0)
+    mobile_app = customer.get('mobile_app_usage', 'Unknown')
+    
+    if digital_logins > 20:
+        factors['primary_factors'].append(f"📱 Highly digital ({digital_logins} logins/month)")
+        factors['channel_preferences'].append("Prioritize app and email channels")
+        factors['personalization_score'] += 20
+    elif digital_logins < 5:
+        factors['primary_factors'].append(f"📮 Traditional banking preference ({digital_logins} logins/month)")
+        factors['channel_preferences'].append("Emphasize letter and phone support")
+        factors['personalization_score'] += 15
+    else:
+        factors['primary_factors'].append(f"💻 Moderate digital usage ({digital_logins} logins/month)")
+        factors['channel_preferences'].append("Balance digital and traditional channels")
+        factors['personalization_score'] += 10
+    
+    # Mobile app usage
+    if mobile_app == 'Daily':
+        factors['channel_preferences'].append("🚀 Daily app user - App-first messaging")
+        factors['personalization_score'] += 15
+    elif mobile_app == 'Never':
+        factors['channel_preferences'].append("📵 Non-app user - Avoid app-specific features")
+        factors['personalization_score'] += 10
+    
+    # Financial status analysis
+    balance = customer.get('account_balance', 0)
+    if balance > 20000:
+        factors['primary_factors'].append(f"💎 Premium customer (£{balance:,} balance)")
+        factors['special_considerations'].append("Mention premium services and wealth management")
+        factors['personalization_score'] += 25
+    elif balance < 1000:
+        factors['primary_factors'].append(f"💰 Budget-conscious (£{balance:,} balance)")
+        factors['special_considerations'].append("Focus on budgeting tools and support")
+        factors['personalization_score'] += 15
+    else:
+        factors['primary_factors'].append(f"💳 Standard balance (£{balance:,})")
+        factors['personalization_score'] += 10
+    
+    # Language preference
+    language = customer.get('preferred_language', 'English')
+    if language != 'English':
+        factors['primary_factors'].append(f"🌍 {language} speaker - Full translation required")
+        factors['special_considerations'].append(f"All content in {language}")
+        factors['personalization_score'] += 30
+    
+    # Loyalty analysis
+    years_with_bank = customer.get('years_with_bank', 0)
+    if years_with_bank > 10:
+        factors['special_considerations'].append(f"🏆 Loyal customer ({years_with_bank} years) - Acknowledge loyalty")
+        factors['personalization_score'] += 20
+    elif years_with_bank > 5:
+        factors['special_considerations'].append(f"⭐ Established customer ({years_with_bank} years)")
+        factors['personalization_score'] += 10
+    
+    # Life events
+    life_events = customer.get('recent_life_events', 'None')
+    if life_events not in ['None', 'unknown', None]:
+        factors['special_considerations'].append(f"🎯 Recent life event: {life_events}")
+        factors['personalization_score'] += 15
+    
+    # Accessibility needs
+    accessibility = customer.get('accessibility_needs', 'None')
+    if accessibility not in ['None', 'unknown', None]:
+        factors['special_considerations'].append(f"♿ Accessibility: {accessibility}")
+        factors['personalization_score'] += 20
+    
+    # Family status
+    family = customer.get('family_status', 'unknown')
+    if 'children' in str(family).lower():
+        factors['special_considerations'].append("👨‍👩‍👧‍👦 Has children - Include family financial planning")
+        factors['personalization_score'] += 10
+    
+    # Employment status
+    employment = customer.get('employment_status', 'unknown')
+    if 'self-employed' in str(employment).lower():
+        factors['special_considerations'].append("💼 Self-employed - Mention business banking")
+        factors['personalization_score'] += 15
+    elif 'retired' in str(employment).lower():
+        factors['special_considerations'].append("🏖️ Retired - Focus on security and simplicity")
+        factors['personalization_score'] += 10
+    
+    # Email engagement
+    email_opens = customer.get('email_opens_per_month', 0)
+    if email_opens < 5:
+        factors['tone_adjustments'].append(f"📧 Low email engagement ({email_opens}/month) - Keep messages brief")
+    elif email_opens > 15:
+        factors['tone_adjustments'].append(f"📧 High email engagement ({email_opens}/month) - Detailed explanations OK")
+    
+    # Branch visits
+    branch_visits = customer.get('branch_visits_per_month', 0)
+    if branch_visits > 2:
+        factors['channel_preferences'].append(f"🏦 Regular branch visitor ({branch_visits}/month)")
+        factors['personalization_score'] += 10
+    
+    # Calculate overall personalization level
+    if factors['personalization_score'] >= 80:
+        factors['level'] = "🔥 Hyper-Personalized"
+    elif factors['personalization_score'] >= 60:
+        factors['level'] = "⭐ Highly Personalized"
+    elif factors['personalization_score'] >= 40:
+        factors['level'] = "✅ Well Personalized"
+    elif factors['personalization_score'] >= 20:
+        factors['level'] = "📊 Moderately Personalized"
+    else:
+        factors['level'] = "📝 Basic Personalization"
+    
+    return factors
+
 def check_voice_eligibility(customer: Dict[str, Any], document_type: str) -> Dict[str, Any]:
     """Check if customer is eligible for voice notes using rules engine"""
     document_metadata = {
@@ -289,7 +428,11 @@ with col1:
         # Generate button
         if st.button("🚀 Generate Personalization", type="primary", use_container_width=True):
             with st.spinner(f"Personalizing for {selected_customer['name']}..."):
+                # Generate personalized content
                 result = st.session_state.engine.personalize_letter(letter_content, selected_customer)
+                
+                # ANALYZE PERSONALIZATION FACTORS (THIS WAS MISSING!)
+                factors = analyze_personalization(selected_customer)
                 
                 # Validate the personalization
                 with st.spinner("Validating content completeness..."):
@@ -305,9 +448,11 @@ with col1:
                         summary
                     )
                 
+                # STORE FACTORS WITH THE RESULT (THIS WAS MISSING!)
                 st.session_state.current_result = {
                     'customer': selected_customer,
-                    'content': result
+                    'content': result,
+                    'factors': factors  # NOW INCLUDING FACTORS!
                 }
                 st.success("✓ Personalization complete!")
                 st.rerun()
@@ -393,6 +538,57 @@ with col2:
                             st.warning(f"✗ Missing from: {', '.join(detail['missing_from'])}")
             else:
                 st.info("Generate personalization to see validation results")
+        
+        # PERSONALIZATION ANALYSIS (THIS WAS MISSING FROM THE UI!)
+        with st.expander("🎯 Personalization Analysis", expanded=True):
+            if 'factors' in st.session_state.current_result:
+                factors = st.session_state.current_result['factors']
+                
+                # Overall personalization level with progress bar
+                st.markdown(f"### {factors['level']}")
+                score = factors['personalization_score']
+                st.progress(min(score / 100, 1.0))
+                st.caption(f"Personalization Score: {score}/100")
+                
+                # Primary factors that drove personalization
+                if factors['primary_factors']:
+                    st.markdown("**🎯 Primary Personalization Drivers:**")
+                    for factor in factors['primary_factors']:
+                        st.write(factor)
+                
+                # Channel preferences based on profile
+                if factors['channel_preferences']:
+                    st.markdown("**📡 Channel Strategy:**")
+                    for pref in factors['channel_preferences']:
+                        st.write(pref)
+                
+                # Tone adjustments made
+                if factors['tone_adjustments']:
+                    st.markdown("**✍️ Tone & Style Adjustments:**")
+                    for tone in factors['tone_adjustments']:
+                        st.write(tone)
+                
+                # Special considerations
+                if factors['special_considerations']:
+                    st.markdown("**⚡ Special Considerations:**")
+                    for consideration in factors['special_considerations']:
+                        st.write(consideration)
+                
+                # Summary metrics in columns
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Factors Applied", 
+                             len(factors['primary_factors']) + 
+                             len(factors['special_considerations']))
+                with col2:
+                    st.metric("Channels Optimized", 
+                             len(factors['channel_preferences']))
+                with col3:
+                    st.metric("Personalization Level", 
+                             factors['level'].split()[1] if len(factors['level'].split()) > 1 else "Basic")
+            else:
+                st.info("Generate personalization to see analysis of personalization factors")
         
         # Generated Content - All 5 channels
         st.subheader("📝 Generated Content")
