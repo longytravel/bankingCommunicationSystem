@@ -1,6 +1,7 @@
 """
-Lloyds Personalization UI - Enhanced with Voice Notes
-Voice as 5th channel, auto-classification, dynamic validation
+Lloyds Personalization UI - Enhanced with AI Document Intelligence
+Voice as 5th channel, AI-powered classification, dynamic validation
+Smart placeholder handling and improved initialization
 """
 
 import streamlit as st
@@ -11,12 +12,20 @@ import re
 import json
 import base64
 import hashlib
+import os
 from typing import Dict, Any, Optional, List
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded
+load_dotenv()
 
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.personalization_engine import PersonalizationEngine
 from core.voice_note_generator import VoiceNoteGenerator
+from core.document_classifier import AIDocumentClassifier, ClassificationResult
+from core.content_validator import ContentValidator, PointImportance
 
 # Page config
 st.set_page_config(
@@ -25,7 +34,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Clean styling
+# Enhanced styling with collapsible sections support
 st.markdown("""
 <style>
     .main {padding-top: 1rem;}
@@ -36,14 +45,106 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 1.2rem;
     }
+    .classification-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: bold;
+        display: inline-block;
+    }
+    .confidence-high { background-color: #00A651; color: white; }
+    .confidence-medium { background-color: #FFA500; color: white; }
+    .confidence-low { background-color: #FF4444; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state variables
+def initialize_ai_classifier():
+    """Initialize or reinitialize the AI classifier with proper API key"""
+    api_key = os.getenv('CLAUDE_API_KEY')
+    if api_key:
+        return AIDocumentClassifier(api_key=api_key)
+    else:
+        return AIDocumentClassifier()
+
+def smart_extract_key_points(letter_text: str) -> List:
+    """
+    Smart extraction that understands placeholders and templates
+    """
+    validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
+    key_points = validator.extract_key_points(letter_text)
+    
+    # Post-process to handle placeholders intelligently
+    processed_points = []
+    for point in key_points:
+        content = point.content
+        
+        # Detect and transform placeholders
+        placeholder_patterns = [
+            (r'\[XXXXXX\]', 'Account reference must be included'),
+            (r'\[Customer Name\]', 'Customer name personalization required'),
+            (r'\[Account Name\]', 'Account type must be specified'),
+            (r'\[Effective Date\]', 'Effective date must be specified'),
+            (r'\[Customer Services Number\]', 'Contact number must be provided'),
+            (r'account number: \[.*?\]', 'Account reference must be included'),
+            (r'\[.*?\]', 'Personalized field required: {}')
+        ]
+        
+        transformed = False
+        for pattern, replacement in placeholder_patterns:
+            if re.search(pattern, content, re.IGNORECASE):
+                # Extract the placeholder name if it's a generic pattern
+                match = re.search(pattern, content, re.IGNORECASE)
+                if '{}' in replacement and match:
+                    placeholder_name = match.group(0).strip('[]')
+                    point.content = replacement.format(placeholder_name)
+                else:
+                    point.content = replacement
+                
+                # Mark as contextual if it's a placeholder (not critical to match exactly)
+                if point.importance == PointImportance.CRITICAL:
+                    point.importance = PointImportance.IMPORTANT
+                
+                point.explanation = f"Template placeholder: {match.group(0) if match else 'detected'}"
+                transformed = True
+                break
+        
+        processed_points.append(point)
+    
+    return processed_points
+
+def smart_validate_personalization(key_points: List, personalized_content: Dict[str, str]) -> tuple:
+    """
+    Smart validation that understands placeholders were meant to be replaced
+    """
+    validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
+    
+    # Transform validation to be smarter about placeholders
+    smart_points = []
+    for point in key_points:
+        # If it's a placeholder-related point, check for the concept not the literal
+        if 'placeholder' in point.explanation.lower() or '[' in point.content:
+            # Look for the concept being addressed
+            if 'account' in point.content.lower():
+                point.content = "Account reference or number mentioned"
+            elif 'customer name' in point.content.lower():
+                point.content = "Customer name used"
+            elif 'date' in point.content.lower():
+                point.content = "Date specified"
+            elif 'contact' in point.content.lower() or 'phone' in point.content.lower():
+                point.content = "Contact information provided"
+        smart_points.append(point)
+    
+    return validator.validate_personalization(smart_points, personalized_content)
+
+# Initialize session state variables with smart initialization
 if 'engine' not in st.session_state:
     st.session_state.engine = PersonalizationEngine()
 if 'voice_generator' not in st.session_state:
     st.session_state.voice_generator = VoiceNoteGenerator()
+
+# Smart AI classifier initialization - always check it has API key
+if 'ai_classifier' not in st.session_state or not hasattr(st.session_state.ai_classifier, 'client') or st.session_state.ai_classifier.client is None:
+    st.session_state.ai_classifier = initialize_ai_classifier()
+    
 if 'current_result' not in st.session_state:
     st.session_state.current_result = None
 if 'voice_result' not in st.session_state:
@@ -52,59 +153,20 @@ if 'key_points' not in st.session_state:
     st.session_state.key_points = []
 if 'voice_eligibility' not in st.session_state:
     st.session_state.voice_eligibility = None
-if 'document_classification' not in st.session_state:
-    st.session_state.document_classification = None
+if 'ai_classification' not in st.session_state:
+    st.session_state.ai_classification = None
+if 'classification_viz_data' not in st.session_state:
+    st.session_state.classification_viz_data = None
 if 'validation_report' not in st.session_state:
     st.session_state.validation_report = None
 if 'content_validator' not in st.session_state:
-    from core.content_validator import ContentValidator
-    st.session_state.content_validator = ContentValidator()
+    st.session_state.content_validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
 if 'letter_content' not in st.session_state:
     st.session_state.letter_content = None
-
-# NEW: Add tracking for letter analysis
 if 'letter_analyzed' not in st.session_state:
     st.session_state.letter_analyzed = False
 if 'last_letter_hash' not in st.session_state:
     st.session_state.last_letter_hash = None
-
-def classify_document(letter_text: str) -> str:
-    """
-    Automatically classify document type based on content
-    Returns: REGULATORY, PROMOTIONAL, or INFORMATIONAL
-    """
-    text_lower = letter_text.lower()
-    
-    # Check for regulatory keywords
-    regulatory_keywords = [
-        'terms and conditions', 'regulatory', 'compliance', 'legal requirement',
-        'payment services regulations', 'mandatory', 'required by law',
-        'important changes', 'notice of changes', 'must inform you'
-    ]
-    regulatory_score = sum(1 for keyword in regulatory_keywords if keyword in text_lower)
-    
-    # Check for promotional keywords
-    promotional_keywords = [
-        'offer', 'save money', 'exclusive', 'limited time', 'special rate',
-        'earn rewards', 'bonus', 'discount', 'new feature', 'opportunity',
-        'benefit', 'advantage', 'upgrade', 'premium'
-    ]
-    promotional_score = sum(1 for keyword in promotional_keywords if keyword in text_lower)
-    
-    # Check for informational keywords
-    informational_keywords = [
-        'update', 'information', 'notice', 'announcement', 'helpful',
-        'tips', 'guide', 'support', 'reminder', 'for your information'
-    ]
-    informational_score = sum(1 for keyword in informational_keywords if keyword in text_lower)
-    
-    # Determine classification based on scores
-    if regulatory_score >= 2 or ('terms' in text_lower and 'conditions' in text_lower):
-        return 'REGULATORY'
-    elif promotional_score > informational_score and promotional_score >= 2:
-        return 'PROMOTIONAL'
-    else:
-        return 'INFORMATIONAL'
 
 def analyze_personalization(customer: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -321,9 +383,75 @@ def play_audio_file(file_path: Path):
             with st.expander("Mock Data"):
                 st.json(mock_data)
 
+def display_classification_insights(classification: ClassificationResult):
+    """Display AI classification insights in a compact, visual way"""
+    # Top-level metrics in columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Type", classification.primary_classification)
+    
+    with col2:
+        confidence = classification.confidence_score * 100
+        color = "confidence-high" if confidence > 80 else "confidence-medium" if confidence > 60 else "confidence-low"
+        st.metric("Confidence", f"{confidence:.1f}%")
+    
+    with col3:
+        st.metric("Urgency", classification.urgency_level)
+    
+    with col4:
+        st.metric("Tone", classification.tone)
+    
+    # Key insights in expandable sections
+    with st.expander("🔍 Classification Details", expanded=False):
+        st.markdown(f"**Reasoning:** {classification.reasoning}")
+        
+        if classification.key_indicators:
+            st.markdown("**Key Evidence:**")
+            for indicator in classification.key_indicators[:5]:
+                st.write(f"• {indicator}")
+    
+    with st.expander("🎯 AI Insights", expanded=False):
+        insights = classification.ai_insights
+        if insights:
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("**Document Analysis:**")
+                st.write(f"• Purpose: {insights.get('primary_purpose', 'N/A')}")
+                st.write(f"• Audience: {insights.get('target_audience', 'N/A')}")
+                st.write(f"• Key Message: {insights.get('key_message', 'N/A')}")
+            with col_b:
+                st.markdown("**Recommendations:**")
+                channels = insights.get('recommended_channels', [])
+                if channels:
+                    st.write(f"• Best Channels: {', '.join(channels[:3])}")
+                st.write(f"• Action: {insights.get('call_to_action', 'N/A')}")
+    
+    # Risk assessment if available
+    if 'risk_assessment' in classification.ai_insights:
+        with st.expander("⚠️ Risk Assessment", expanded=False):
+            risks = classification.ai_insights['risk_assessment']
+            cols = st.columns(4)
+            risk_types = ['misunderstanding_risk', 'reputation_risk', 'compliance_risk', 'customer_satisfaction_risk']
+            for idx, risk_type in enumerate(risk_types):
+                if risk_type in risks:
+                    with cols[idx]:
+                        risk_level = risks[risk_type]
+                        color = "🔴" if risk_level == "HIGH" else "🟡" if risk_level == "MEDIUM" else "🟢"
+                        st.write(f"{color} {risk_type.replace('_', ' ').title()}")
+                        st.caption(risk_level)
+
+# Add debug/refresh in sidebar for troubleshooting
+with st.sidebar:
+    if st.button("🔄 Refresh AI Services", help="Reinitialize AI services if having issues"):
+        st.session_state.ai_classifier = initialize_ai_classifier()
+        st.session_state.content_validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
+        st.success("AI services refreshed")
+        st.rerun()
+
 # Header
 st.title("🏦 Lloyds AI Personalization Engine")
-st.markdown("Transform generic letters into personalized multi-channel communications")
+st.markdown("Transform generic letters into personalized multi-channel communications with AI intelligence")
 st.markdown("---")
 
 # Two columns
@@ -338,7 +466,7 @@ with col1:
     letter_file = st.file_uploader(
         "Select letter to personalize",
         type=['txt', 'docx', 'pdf'],
-        help="System will auto-detect letter type"
+        help="Upload a letter for AI analysis and personalization"
     )
     
     if letter_file:
@@ -353,16 +481,13 @@ with col1:
             not st.session_state.letter_analyzed or
             st.session_state.letter_content != letter_content):
             
-            # This is a new file or first time - do the analysis
+            # This is a new file or first time
             st.session_state.letter_content = letter_content
             st.session_state.last_letter_hash = current_hash
             
-            # Auto-classify document
-            st.session_state.document_classification = classify_document(letter_content)
-            
-            # Extract key points using AI validator - THIS ONLY HAPPENS ONCE NOW
-            with st.spinner("Analyzing letter content..."):
-                st.session_state.key_points = st.session_state.content_validator.extract_key_points(letter_content)
+            # Extract key points using SMART AI validator
+            with st.spinner("Extracting critical information intelligently..."):
+                st.session_state.key_points = smart_extract_key_points(letter_content)
             
             # Mark as analyzed
             st.session_state.letter_analyzed = True
@@ -371,45 +496,66 @@ with col1:
             st.session_state.current_result = None
             st.session_state.voice_result = None
             st.session_state.validation_report = None
+            st.session_state.ai_classification = None
         
-        # Display the analysis (this happens on every render but doesn't re-analyze)
-        with st.expander("Letter Analysis", expanded=True):
-            # Show auto-classification
-            doc_type = st.session_state.document_classification
-            if doc_type == 'REGULATORY':
-                st.warning(f"📋 Document Type: {doc_type} (No voice notes for compliance)")
-            else:
-                st.info(f"📋 Document Type: {doc_type}")
+        # Letter Analysis Section - Now with AI Classification Button
+        with st.expander("📋 Letter Analysis", expanded=True):
+            # Button for AI Classification - Force new classifier if needed
+            if st.button("🤖 Analyze Document with AI", type="secondary", use_container_width=True):
+                # Ensure classifier has API key
+                if not st.session_state.ai_classifier.client:
+                    st.session_state.ai_classifier = initialize_ai_classifier()
+                
+                with st.spinner("Running comprehensive AI analysis..."):
+                    start_time = datetime.now()
+                    classification_result = st.session_state.ai_classifier.classify_document(letter_content)
+                    processing_time = (datetime.now() - start_time).total_seconds()
+                    
+                    st.session_state.ai_classification = classification_result
+                    st.session_state.classification_viz_data = st.session_state.ai_classifier.get_visualization_data(classification_result)
+                    
+                    st.success(f"✅ AI Analysis complete in {processing_time:.1f}s")
+                    st.rerun()
             
-            # Show AI-extracted key points (already computed)
-            if st.session_state.key_points:
-                st.markdown("**🤖 AI-Identified Key Information:**")
-                
-                # Group by importance
-                from core.content_validator import PointImportance
-                critical = [p for p in st.session_state.key_points if p.importance == PointImportance.CRITICAL]
-                important = [p for p in st.session_state.key_points if p.importance == PointImportance.IMPORTANT]
-                contextual = [p for p in st.session_state.key_points if p.importance == PointImportance.CONTEXTUAL]
-                
-                if critical:
-                    st.markdown("**🔴 Critical (Must Include):**")
-                    for point in critical[:5]:
-                        st.write(f"• {point.content}")
-                        if point.explanation:
-                            st.caption(f"  ↳ {point.explanation}")
-                
-                if important:
-                    st.markdown("**🟡 Important:**")
-                    for point in important[:3]:
-                        st.write(f"• {point.content}")
-                
-                if contextual:
-                    st.markdown("**🔵 Contextual:**")
-                    for point in contextual[:2]:
-                        st.write(f"• {point.content}")
+            # Display AI Classification if available
+            if st.session_state.ai_classification:
+                st.markdown("### 🤖 AI Document Intelligence")
+                display_classification_insights(st.session_state.ai_classification)
+            else:
+                st.info("Click 'Analyze Document with AI' for comprehensive classification")
+            
+            # Critical Information Section (ALWAYS SHOWN - ESSENTIAL FOR PERSONALIZATION)
+            with st.expander("🔒 Critical Information to Preserve", expanded=True):
+                if st.session_state.key_points:
+                    st.markdown("**Essential content that MUST appear in personalized versions:**")
+                    
+                    # Group by importance
+                    critical = [p for p in st.session_state.key_points if p.importance == PointImportance.CRITICAL]
+                    important = [p for p in st.session_state.key_points if p.importance == PointImportance.IMPORTANT]
+                    contextual = [p for p in st.session_state.key_points if p.importance == PointImportance.CONTEXTUAL]
+                    
+                    if critical:
+                        st.markdown("**🔴 Critical (Must Include):**")
+                        for point in critical[:5]:
+                            st.write(f"• {point.content}")
+                            if point.explanation and 'placeholder' not in point.explanation.lower():
+                                st.caption(f"  ↳ {point.explanation}")
+                    
+                    if important:
+                        st.markdown("**🟡 Important:**")
+                        for point in important[:3]:
+                            st.write(f"• {point.content}")
+                            if 'placeholder' in point.explanation.lower():
+                                st.caption(f"  ↳ {point.explanation}")
+                    
+                    if contextual:
+                        st.markdown("**🔵 Contextual:**")
+                        for point in contextual[:2]:
+                            st.write(f"• {point.content}")
             
             # Letter preview
-            st.text_area("Letter Preview", st.session_state.letter_content[:300] + "...", height=100, disabled=True)
+            with st.expander("📄 Letter Preview", expanded=False):
+                st.text_area("Original Letter", st.session_state.letter_content[:500] + "...", height=150, disabled=True)
     else:
         st.warning("Please upload a letter to personalize")
         # Reset analysis flag when no file
@@ -438,37 +584,41 @@ with col1:
         idx = customer_names.index(selected_customer_name)
         selected_customer = customers_df.iloc[idx].to_dict()
         
-        # Check voice eligibility
-        st.session_state.voice_eligibility = check_voice_eligibility(
-            selected_customer, 
-            st.session_state.document_classification
-        )
+        # Check voice eligibility (use AI classification if available, otherwise default)
+        doc_type = st.session_state.ai_classification.primary_classification if st.session_state.ai_classification else 'INFORMATIONAL'
+        st.session_state.voice_eligibility = check_voice_eligibility(selected_customer, doc_type)
         
-        # Show profile
-        with st.expander("Customer Profile"):
+        # Show profile in collapsible section
+        with st.expander("👤 Customer Profile", expanded=False):
             col_a, col_b = st.columns(2)
             with col_a:
                 st.write(f"**Age:** {selected_customer.get('age', 'N/A')}")
                 st.write(f"**Language:** {selected_customer.get('preferred_language', 'English')}")
                 st.write(f"**Balance:** £{selected_customer.get('account_balance', 0):,}")
+                st.write(f"**Years with Bank:** {selected_customer.get('years_with_bank', 0)}")
             with col_b:
                 st.write(f"**Digital:** {selected_customer.get('digital_logins_per_month', 0)}/month")
                 st.write(f"**App Usage:** {selected_customer.get('mobile_app_usage', 'Unknown')}")
                 st.write(f"**Support Needs:** {selected_customer.get('accessibility_needs', 'None')}")
+                st.write(f"**Life Events:** {selected_customer.get('recent_life_events', 'None')}")
         
         # Generate button
         if st.button("🚀 Generate Personalization", type="primary", use_container_width=True):
             with st.spinner(f"Personalizing for {selected_customer['name']}..."):
-                # Generate personalized content
-                result = st.session_state.engine.personalize_letter(letter_content, selected_customer)
+                # Generate personalized content WITH KEY POINTS for preservation
+                result = st.session_state.engine.personalize_letter(
+                    letter_content, 
+                    selected_customer,
+                    key_points=st.session_state.key_points  # PASS KEY POINTS FOR PRESERVATION
+                )
                 
                 # Analyze personalization factors
                 factors = analyze_personalization(selected_customer)
                 
-                # Validate the personalization (using already extracted key points)
-                with st.spinner("Validating content completeness..."):
-                    validated_points, summary = st.session_state.content_validator.validate_personalization(
-                        st.session_state.key_points,  # Use existing key points - no re-extraction
+                # SMART validation that understands placeholders
+                with st.spinner("Validating content completeness intelligently..."):
+                    validated_points, summary = smart_validate_personalization(
+                        st.session_state.key_points,
                         result
                     )
                     st.session_state.key_points = validated_points
@@ -497,8 +647,8 @@ with col2:
         customer = result['customer']
         content = result['content']
         
-        # Customer summary
-        col_1, col_2, col_3, col_4 = st.columns(4)
+        # Customer summary bar
+        col_1, col_2, col_3, col_4, col_5 = st.columns(5)
         with col_1:
             st.metric("Customer", customer['name'])
         with col_2:
@@ -506,10 +656,14 @@ with col2:
         with col_3:
             st.metric("Age", customer.get('age', 'Unknown'))
         with col_4:
+            st.metric("Profile", "Digital" if customer.get('digital_logins_per_month', 0) > 10 else "Traditional")
+        with col_5:
             if st.session_state.voice_eligibility:
-                st.metric("Voice", "✅ Eligible" if st.session_state.voice_eligibility['generate'] else "❌ Not Eligible")
+                st.metric("Voice", "✅" if st.session_state.voice_eligibility['generate'] else "❌")
         
-        # Content Validation
+        # ALL SECTIONS NOW COLLAPSIBLE
+        
+        # Content Validation - CRITICAL SECTION
         with st.expander("✅ Content Completeness Check", expanded=True):
             if st.session_state.validation_report:
                 report = st.session_state.validation_report
@@ -551,14 +705,17 @@ with col2:
                             f"{ch_data['coverage']:.0f}%"
                         )
                 
-                # Missing critical points
+                # Missing critical points - but be smart about placeholders
                 if report['critical_missing']:
-                    st.error("**❌ Missing Critical Information:**")
-                    for point in report['critical_missing']:
-                        st.write(f"• {point}")
+                    missing_real = [p for p in report['critical_missing'] 
+                                   if '[' not in p and 'placeholder' not in p.lower()]
+                    if missing_real:
+                        st.error("**❌ Missing Critical Information:**")
+                        for point in missing_real:
+                            st.write(f"• {point}")
                 
-                # Show detailed validation
-                with st.expander("Detailed Validation Results", expanded=False):
+                # Detailed validation in nested expander
+                with st.expander("📋 Detailed Validation Results", expanded=False):
                     for detail in report['details']:
                         icon = "🔴" if detail['importance'] == 'critical' else "🟡" if detail['importance'] == 'important' else "🔵"
                         st.write(f"{icon} **{detail['content']}**")
@@ -566,12 +723,14 @@ with col2:
                         if detail['found_in']:
                             st.success(f"✓ Found in: {', '.join(detail['found_in'])}")
                         if detail['missing_from']:
-                            st.warning(f"✗ Missing from: {', '.join(detail['missing_from'])}")
+                            # Don't show as missing if it's a placeholder
+                            if '[' not in detail['content']:
+                                st.warning(f"✗ Missing from: {', '.join(detail['missing_from'])}")
             else:
                 st.info("Generate personalization to see validation results")
         
         # Personalization Analysis
-        with st.expander("🎯 Personalization Analysis", expanded=True):
+        with st.expander("🎯 Personalization Analysis", expanded=False):
             if 'factors' in st.session_state.current_result:
                 factors = st.session_state.current_result['factors']
                 
@@ -581,45 +740,38 @@ with col2:
                 st.progress(min(score / 100, 1.0))
                 st.caption(f"Personalization Score: {score}/100")
                 
-                # Primary factors that drove personalization
-                if factors['primary_factors']:
-                    st.markdown("**🎯 Primary Personalization Drivers:**")
-                    for factor in factors['primary_factors']:
-                        st.write(factor)
+                # Tabbed view for different factor categories
+                tab_a, tab_b, tab_c, tab_d = st.tabs(["Primary Factors", "Channels", "Tone", "Special"])
                 
-                # Channel preferences based on profile
-                if factors['channel_preferences']:
-                    st.markdown("**📡 Channel Strategy:**")
-                    for pref in factors['channel_preferences']:
-                        st.write(pref)
+                with tab_a:
+                    if factors['primary_factors']:
+                        for factor in factors['primary_factors']:
+                            st.write(factor)
+                    else:
+                        st.write("No primary factors identified")
                 
-                # Tone adjustments made
-                if factors['tone_adjustments']:
-                    st.markdown("**✍️ Tone & Style Adjustments:**")
-                    for tone in factors['tone_adjustments']:
-                        st.write(tone)
+                with tab_b:
+                    if factors['channel_preferences']:
+                        for pref in factors['channel_preferences']:
+                            st.write(pref)
+                    else:
+                        st.write("Standard channel distribution")
                 
-                # Special considerations
-                if factors['special_considerations']:
-                    st.markdown("**⚡ Special Considerations:**")
-                    for consideration in factors['special_considerations']:
-                        st.write(consideration)
+                with tab_c:
+                    if factors['tone_adjustments']:
+                        for tone in factors['tone_adjustments']:
+                            st.write(tone)
+                    else:
+                        st.write("Standard tone applied")
                 
-                # Summary metrics in columns
-                st.markdown("---")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Factors Applied", 
-                             len(factors['primary_factors']) + 
-                             len(factors['special_considerations']))
-                with col2:
-                    st.metric("Channels Optimized", 
-                             len(factors['channel_preferences']))
-                with col3:
-                    st.metric("Personalization Level", 
-                             factors['level'].split()[1] if len(factors['level'].split()) > 1 else "Basic")
+                with tab_d:
+                    if factors['special_considerations']:
+                        for consideration in factors['special_considerations']:
+                            st.write(consideration)
+                    else:
+                        st.write("No special considerations")
             else:
-                st.info("Generate personalization to see analysis of personalization factors")
+                st.info("Generate personalization to see analysis")
         
         # Generated Content - All 5 channels
         st.subheader("📝 Generated Content")
@@ -627,19 +779,23 @@ with col2:
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["📧 Email", "📱 SMS", "📲 App", "📮 Letter", "🎙️ Voice"])
         
         with tab1:  # Email
-            email_content = content.get('email', 'Not generated')
-            st.text_area("Email Version", value=email_content, height=300, disabled=True)
+            with st.expander("View Full Email", expanded=True):
+                email_content = content.get('email', 'Not generated')
+                st.text_area("Email Version", value=email_content, height=300, disabled=True, label_visibility="collapsed")
         
         with tab2:  # SMS
-            sms_content = content.get('sms', 'Not generated')
-            st.text_area("SMS Version", value=sms_content, height=100, disabled=True)
-            st.caption(f"Length: {len(sms_content)} characters")
+            with st.expander("View SMS", expanded=True):
+                sms_content = content.get('sms', 'Not generated')
+                st.text_area("SMS Version", value=sms_content, height=100, disabled=True, label_visibility="collapsed")
+                st.caption(f"Length: {len(sms_content)} characters")
         
         with tab3:  # App
-            st.text_area("App Notification", value=content.get('app', 'Not generated'), height=150, disabled=True)
+            with st.expander("View App Notification", expanded=True):
+                st.text_area("App Notification", value=content.get('app', 'Not generated'), height=150, disabled=True, label_visibility="collapsed")
         
         with tab4:  # Letter
-            st.text_area("Postal Letter", value=content.get('letter', 'Not generated'), height=300, disabled=True)
+            with st.expander("View Postal Letter", expanded=True):
+                st.text_area("Postal Letter", value=content.get('letter', 'Not generated'), height=300, disabled=True, label_visibility="collapsed")
         
         with tab5:  # Voice - Always present as 5th channel
             if st.session_state.voice_eligibility and st.session_state.voice_eligibility['generate']:
@@ -665,11 +821,14 @@ with col2:
                                 target_duration=30
                             )
                             
+                            # Use AI classification if available
+                            doc_class = st.session_state.ai_classification.primary_classification if st.session_state.ai_classification else 'INFORMATIONAL'
+                            
                             # Generate voice note
                             voice_result = st.session_state.voice_generator.generate_voice_note(
                                 text=voice_text,
                                 customer=customer,
-                                document={'classification': st.session_state.document_classification},
+                                document={'classification': doc_class},
                                 force=True
                             )
                             
@@ -678,37 +837,38 @@ with col2:
                             st.rerun()
                 else:
                     # Voice already generated
-                    st.success("✅ Voice Note Generated")
-                    
-                    # Metadata
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Voice", st.session_state.voice_result.get('voice', 'Unknown'))
-                    with col2:
-                        st.metric("Duration", f"~{st.session_state.voice_result.get('duration_estimate', 0):.1f}s")
-                    with col3:
-                        st.metric("Language", st.session_state.voice_result.get('language', 'English'))
-                    
-                    # Voice script
-                    st.markdown("### 📝 Voice Script")
-                    voice_text = create_voice_content(content, customer, target_duration=30)
-                    st.text_area("30-Second Script", value=voice_text, height=150, disabled=True)
-                    st.caption(f"Word count: {len(voice_text.split())} words")
-                    
-                    # Audio player
-                    st.markdown("### 🔊 Audio Player")
-                    file_path = Path(st.session_state.voice_result.get('filename', ''))
-                    if file_path.exists():
-                        play_audio_file(file_path)
-                    
-                    # Regenerate button
-                    if st.button("🔄 Regenerate Voice Note", type="secondary"):
-                        st.session_state.voice_result = None
-                        st.rerun()
+                    with st.expander("🎙️ Voice Note Details", expanded=True):
+                        st.success("✅ Voice Note Generated")
+                        
+                        # Metadata
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Voice", st.session_state.voice_result.get('voice', 'Unknown'))
+                        with col2:
+                            st.metric("Duration", f"~{st.session_state.voice_result.get('duration_estimate', 0):.1f}s")
+                        with col3:
+                            st.metric("Language", st.session_state.voice_result.get('language', 'English'))
+                        
+                        # Voice script
+                        st.markdown("### 📝 Voice Script")
+                        voice_text = create_voice_content(content, customer, target_duration=30)
+                        st.text_area("30-Second Script", value=voice_text, height=150, disabled=True, label_visibility="collapsed")
+                        st.caption(f"Word count: {len(voice_text.split())} words")
+                        
+                        # Audio player
+                        st.markdown("### 🔊 Audio Player")
+                        file_path = Path(st.session_state.voice_result.get('filename', ''))
+                        if file_path.exists():
+                            play_audio_file(file_path)
+                        
+                        # Regenerate button
+                        if st.button("🔄 Regenerate Voice Note", type="secondary"):
+                            st.session_state.voice_result = None
+                            st.rerun()
             else:
                 # Not eligible for voice
                 st.info("🔇 Voice notes not available")
-                if st.session_state.document_classification == 'REGULATORY':
+                if st.session_state.ai_classification and st.session_state.ai_classification.primary_classification == 'REGULATORY':
                     st.caption("Regulatory documents require written format for compliance")
                 elif st.session_state.voice_eligibility:
                     st.caption(f"Reason: {st.session_state.voice_eligibility.get('reason', 'Does not meet eligibility criteria')}")
@@ -719,4 +879,4 @@ with col2:
 
 # Footer
 st.markdown("---")
-st.caption("Powered by Claude Sonnet 4 & OpenAI TTS | Lloyds Banking Group")
+st.caption("Powered by Claude 4 Sonnet & OpenAI TTS | Lloyds Banking Group")
