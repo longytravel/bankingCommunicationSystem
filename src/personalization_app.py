@@ -10,6 +10,7 @@ import sys
 import re
 import json
 import base64
+import hashlib
 from typing import Dict, Any, Optional, List
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -38,7 +39,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize
+# Initialize session state variables
 if 'engine' not in st.session_state:
     st.session_state.engine = PersonalizationEngine()
 if 'voice_generator' not in st.session_state:
@@ -60,6 +61,12 @@ if 'content_validator' not in st.session_state:
     st.session_state.content_validator = ContentValidator()
 if 'letter_content' not in st.session_state:
     st.session_state.letter_content = None
+
+# NEW: Add tracking for letter analysis
+if 'letter_analyzed' not in st.session_state:
+    st.session_state.letter_analyzed = False
+if 'last_letter_hash' not in st.session_state:
+    st.session_state.last_letter_hash = None
 
 def classify_document(letter_text: str) -> str:
     """
@@ -335,16 +342,37 @@ with col1:
     )
     
     if letter_file:
+        # Read the file content
         letter_content = letter_file.read().decode('utf-8') if letter_file.type == 'text/plain' else str(letter_file.read())
-        st.session_state.letter_content = letter_content
         
-        # Auto-classify document
-        st.session_state.document_classification = classify_document(letter_content)
+        # Calculate hash of the current file
+        current_hash = hashlib.md5(letter_content.encode()).hexdigest()
         
-        # Extract key points using AI validator
-        with st.spinner("Analyzing letter content..."):
-            st.session_state.key_points = st.session_state.content_validator.extract_key_points(letter_content)
+        # Check if this is a new file or if we haven't analyzed yet
+        if (st.session_state.last_letter_hash != current_hash or 
+            not st.session_state.letter_analyzed or
+            st.session_state.letter_content != letter_content):
+            
+            # This is a new file or first time - do the analysis
+            st.session_state.letter_content = letter_content
+            st.session_state.last_letter_hash = current_hash
+            
+            # Auto-classify document
+            st.session_state.document_classification = classify_document(letter_content)
+            
+            # Extract key points using AI validator - THIS ONLY HAPPENS ONCE NOW
+            with st.spinner("Analyzing letter content..."):
+                st.session_state.key_points = st.session_state.content_validator.extract_key_points(letter_content)
+            
+            # Mark as analyzed
+            st.session_state.letter_analyzed = True
+            
+            # Clear any previous results since we have a new letter
+            st.session_state.current_result = None
+            st.session_state.voice_result = None
+            st.session_state.validation_report = None
         
+        # Display the analysis (this happens on every render but doesn't re-analyze)
         with st.expander("Letter Analysis", expanded=True):
             # Show auto-classification
             doc_type = st.session_state.document_classification
@@ -353,7 +381,7 @@ with col1:
             else:
                 st.info(f"📋 Document Type: {doc_type}")
             
-            # Show AI-extracted key points
+            # Show AI-extracted key points (already computed)
             if st.session_state.key_points:
                 st.markdown("**🤖 AI-Identified Key Information:**")
                 
@@ -381,9 +409,12 @@ with col1:
                         st.write(f"• {point.content}")
             
             # Letter preview
-            st.text_area("Letter Preview", letter_content[:300] + "...", height=100, disabled=True)
+            st.text_area("Letter Preview", st.session_state.letter_content[:300] + "...", height=100, disabled=True)
     else:
         st.warning("Please upload a letter to personalize")
+        # Reset analysis flag when no file
+        st.session_state.letter_analyzed = False
+        st.session_state.last_letter_hash = None
         letter_content = None
     
     # Customer data upload
@@ -431,13 +462,13 @@ with col1:
                 # Generate personalized content
                 result = st.session_state.engine.personalize_letter(letter_content, selected_customer)
                 
-                # ANALYZE PERSONALIZATION FACTORS (THIS WAS MISSING!)
+                # Analyze personalization factors
                 factors = analyze_personalization(selected_customer)
                 
-                # Validate the personalization
+                # Validate the personalization (using already extracted key points)
                 with st.spinner("Validating content completeness..."):
                     validated_points, summary = st.session_state.content_validator.validate_personalization(
-                        st.session_state.key_points,
+                        st.session_state.key_points,  # Use existing key points - no re-extraction
                         result
                     )
                     st.session_state.key_points = validated_points
@@ -448,11 +479,11 @@ with col1:
                         summary
                     )
                 
-                # STORE FACTORS WITH THE RESULT (THIS WAS MISSING!)
+                # Store factors with the result
                 st.session_state.current_result = {
                     'customer': selected_customer,
                     'content': result,
-                    'factors': factors  # NOW INCLUDING FACTORS!
+                    'factors': factors
                 }
                 st.success("✓ Personalization complete!")
                 st.rerun()
@@ -539,7 +570,7 @@ with col2:
             else:
                 st.info("Generate personalization to see validation results")
         
-        # PERSONALIZATION ANALYSIS (THIS WAS MISSING FROM THE UI!)
+        # Personalization Analysis
         with st.expander("🎯 Personalization Analysis", expanded=True):
             if 'factors' in st.session_state.current_result:
                 factors = st.session_state.current_result['factors']
