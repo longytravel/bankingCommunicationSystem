@@ -1,6 +1,6 @@
 """
-Lloyds Personalization UI - Hybrid: Keep Working Left Side, Clean Right Side
-Keeps all working functionality, showcases new email system properly
+Lloyds Multi-Channel Personalization UI - Email + SMS Modular System
+Clean tabbed interface showing multiple personalization channels
 """
 
 import streamlit as st
@@ -21,8 +21,9 @@ load_dotenv()
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Import NEW email system
+# Import MODULAR systems
 from core.simple_email_orchestrator import SimpleEmailOrchestrator
+from core.simple_sms_orchestrator import SimpleSMSOrchestrator
 
 # Import existing working components  
 from core.voice_note_generator import VoiceNoteGenerator
@@ -36,7 +37,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Enhanced styling with collapsible sections support
+# Enhanced styling with tabs and channel cards
 st.markdown("""
 <style>
     .main {padding-top: 1rem;}
@@ -56,19 +57,77 @@ st.markdown("""
     .confidence-high { background-color: #00A651; color: white; }
     .confidence-medium { background-color: #FFA500; color: white; }
     .confidence-low { background-color: #FF4444; color: white; }
-    .email-showcase {
+    
+    .channel-showcase {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         border: 1px solid #dee2e6;
         border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
     }
+    
+    .email-showcase {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border: 1px solid #2196f3;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    
+    .sms-showcase {
+        background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+        border: 1px solid #4caf50;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    
     .success-banner {
         background: linear-gradient(90deg, #00A651, #006A4D);
         color: white;
         padding: 1rem;
         border-radius: 8px;
         margin-bottom: 1rem;
+    }
+    
+    .skipped-banner {
+        background: linear-gradient(90deg, #FFA726, #FF9800);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .channel-stats {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    
+    .sms-preview {
+        background: #f0f0f0;
+        border: 2px solid #4caf50;
+        border-radius: 15px;
+        padding: 1rem;
+        font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 16px;
+        line-height: 1.4;
+        margin: 1rem 0;
+        position: relative;
+    }
+    
+    .sms-preview::before {
+        content: "📱 SMS Preview";
+        position: absolute;
+        top: -10px;
+        left: 15px;
+        background: #4caf50;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -82,9 +141,7 @@ def initialize_ai_classifier():
         return AIDocumentClassifier()
 
 def smart_extract_key_points(letter_text: str) -> List:
-    """
-    Smart extraction that understands placeholders and templates
-    """
+    """Smart extraction that understands placeholders and templates"""
     validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
     key_points = validator.extract_key_points(letter_text)
     
@@ -107,7 +164,6 @@ def smart_extract_key_points(letter_text: str) -> List:
         transformed = False
         for pattern, replacement in placeholder_patterns:
             if re.search(pattern, content, re.IGNORECASE):
-                # Extract the placeholder name if it's a generic pattern
                 match = re.search(pattern, content, re.IGNORECASE)
                 if '{}' in replacement and match:
                     placeholder_name = match.group(0).strip('[]')
@@ -115,7 +171,6 @@ def smart_extract_key_points(letter_text: str) -> List:
                 else:
                     point.content = replacement
                 
-                # Mark as contextual if it's a placeholder (not critical to match exactly)
                 if point.importance == PointImportance.CRITICAL:
                     point.importance = PointImportance.IMPORTANT
                 
@@ -128,10 +183,7 @@ def smart_extract_key_points(letter_text: str) -> List:
     return processed_points
 
 def analyze_personalization(customer: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Analyze customer profile to determine personalization factors
-    Returns detailed analysis of WHY content was personalized
-    """
+    """Analyze customer profile to determine personalization factors"""
     factors = {
         'primary_factors': [],
         'channel_preferences': [],
@@ -253,7 +305,6 @@ def check_voice_eligibility(customer: Dict[str, Any], document_type: str) -> Dic
 
 def display_classification_insights(classification: ClassificationResult):
     """Display AI classification insights in a compact, visual way"""
-    # Top-level metrics in columns
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -261,7 +312,6 @@ def display_classification_insights(classification: ClassificationResult):
     
     with col2:
         confidence = classification.confidence_score * 100
-        color = "confidence-high" if confidence > 80 else "confidence-medium" if confidence > 60 else "confidence-low"
         st.metric("Confidence", f"{confidence:.1f}%")
     
     with col3:
@@ -270,7 +320,6 @@ def display_classification_insights(classification: ClassificationResult):
     with col4:
         st.metric("Tone", classification.tone)
     
-    # Key insights in expandable sections
     with st.expander("🔍 Classification Details", expanded=False):
         st.markdown(f"**Reasoning:** {classification.reasoning}")
         
@@ -282,15 +331,17 @@ def display_classification_insights(classification: ClassificationResult):
 # Initialize session state variables with smart initialization
 if 'email_orchestrator' not in st.session_state:
     st.session_state.email_orchestrator = SimpleEmailOrchestrator()
+if 'sms_orchestrator' not in st.session_state:
+    st.session_state.sms_orchestrator = SimpleSMSOrchestrator()
 if 'voice_generator' not in st.session_state:
     st.session_state.voice_generator = VoiceNoteGenerator()
 
-# Smart AI classifier initialization - always check it has API key
+# Smart AI classifier initialization
 if 'ai_classifier' not in st.session_state or not hasattr(st.session_state.ai_classifier, 'client') or st.session_state.ai_classifier.client is None:
     st.session_state.ai_classifier = initialize_ai_classifier()
     
-if 'current_result' not in st.session_state:
-    st.session_state.current_result = None
+if 'current_results' not in st.session_state:
+    st.session_state.current_results = None
 if 'voice_result' not in st.session_state:
     st.session_state.voice_result = None
 if 'key_points' not in st.session_state:
@@ -309,12 +360,15 @@ if 'last_letter_hash' not in st.session_state:
     st.session_state.last_letter_hash = None
 
 # Header
-st.title("🏦 Lloyds AI Personalization Engine")
+st.title("🏦 Lloyds Multi-Channel AI Personalization Engine")
 st.markdown("Transform generic letters into personalized multi-channel communications with AI intelligence")
 
 # Show system mode
-if st.session_state.email_orchestrator:
-    st.info("🎯 **MODULAR EMAIL SYSTEM** - Next-generation personalization with content preservation")
+col1, col2 = st.columns(2)
+with col1:
+    st.info("📧 **EMAIL MODULE** - Advanced personalization with content preservation")
+with col2:
+    st.info("📱 **SMS MODULE** - Smart, rules-based SMS generation")
 
 st.markdown("---")
 
@@ -345,7 +399,6 @@ with col1:
             not st.session_state.letter_analyzed or
             st.session_state.letter_content != letter_content):
             
-            # This is a new file or first time
             st.session_state.letter_content = letter_content
             st.session_state.last_letter_hash = current_hash
             
@@ -353,19 +406,14 @@ with col1:
             with st.spinner("Extracting critical information intelligently..."):
                 st.session_state.key_points = smart_extract_key_points(letter_content)
             
-            # Mark as analyzed
             st.session_state.letter_analyzed = True
-            
-            # Clear any previous results since we have a new letter
-            st.session_state.current_result = None
-            st.session_state.voice_result = None
+            st.session_state.current_results = None
             st.session_state.ai_classification = None
         
-        # Letter Analysis Section - Now with AI Classification Button
+        # Letter Analysis Section
         with st.expander("📋 Letter Analysis", expanded=True):
             # Button for AI Classification
             if st.button("🤖 Analyze Document with AI", type="secondary", use_container_width=True):
-                # Ensure classifier has API key
                 if not st.session_state.ai_classifier.client:
                     st.session_state.ai_classifier = initialize_ai_classifier()
                 
@@ -459,199 +507,129 @@ with col1:
                 st.write(f"**Support Needs:** {selected_customer.get('accessibility_needs', 'None')}")
                 st.write(f"**Life Events:** {selected_customer.get('recent_life_events', 'None')}")
         
-        # Generate button - USING NEW EMAIL SYSTEM
-        if st.button("🚀 Generate Personalized Email", type="primary", use_container_width=True):
-            with st.spinner(f"Personalizing email for {selected_customer['name']} using modular system..."):
+        # Generate button - USING BOTH ORCHESTRATORS
+        if st.button("🚀 Generate Multi-Channel Personalization", type="primary", use_container_width=True):
+            with st.spinner(f"Personalizing all channels for {selected_customer['name']}..."):
                 
-                # Use NEW email orchestrator system
-                orchestration_result = st.session_state.email_orchestrator.personalize_email(
+                # Generate Email
+                email_result = st.session_state.email_orchestrator.personalize_email(
                     letter_content,
                     selected_customer,
                     validate_content=True
                 )
                 
-                # Analyze personalization factors using existing system
+                # Generate SMS
+                sms_result = st.session_state.sms_orchestrator.personalize_sms(
+                    letter_content,
+                    selected_customer,
+                    validate_content=True
+                )
+                
+                # Analyze personalization factors
                 factors = analyze_personalization(selected_customer)
                 
                 # Store results
-                st.session_state.current_result = {
+                st.session_state.current_results = {
                     'customer': selected_customer,
-                    'orchestration_result': orchestration_result,
+                    'email_result': email_result,
+                    'sms_result': sms_result,
                     'factors': factors
                 }
                 
-                if orchestration_result.get('email') and orchestration_result['email'].get('content'):
-                    st.success("✅ Modular Email System - Personalization complete!")
+                # Show completion status
+                email_success = email_result.get('email') and email_result['email'].get('content')
+                sms_success = sms_result.get('sms') and sms_result['sms'].get('content') and not sms_result.get('sms', {}).get('skipped')
+                sms_skipped = sms_result.get('sms', {}).get('skipped', False)
+                
+                if email_success and sms_success:
+                    st.success("✅ Both Email & SMS Generated Successfully!")
+                elif email_success and sms_skipped:
+                    st.success("✅ Email Generated | SMS Skipped (Customer Rules)")
+                elif email_success:
+                    st.success("✅ Email Generated | SMS Failed")
                 else:
-                    st.error("❌ Email generation failed")
-                    if orchestration_result.get('errors'):
-                        st.error(f"Error: {orchestration_result['errors'][0]}")
+                    st.error("❌ Generation failed")
                 
                 st.rerun()
 
-# RIGHT COLUMN - CLEAN Results Display for New System
+# RIGHT COLUMN - Multi-Channel Results Display
 with col2:
-    st.header("📧 Personalized Email Results")
+    st.header("📺 Multi-Channel Results")
     
-    if st.session_state.current_result:
-        result = st.session_state.current_result
+    if st.session_state.current_results:
+        result = st.session_state.current_results
         customer = result['customer']
-        orchestration_result = result['orchestration_result']
+        email_result = result['email_result']
+        sms_result = result['sms_result']
         factors = result['factors']
         
-        # Success banner if email generated
-        if orchestration_result.get('email') and orchestration_result['email'].get('content'):
+        # Overall success banner
+        email_success = email_result.get('email') and email_result['email'].get('content')
+        sms_success = sms_result.get('sms') and sms_result['sms'].get('content') and not sms_result.get('sms', {}).get('skipped')
+        sms_skipped = sms_result.get('sms', {}).get('skipped', False)
+        
+        if email_success and sms_success:
             st.markdown(f'''
             <div class="success-banner">
-                <h3>✅ Email Generated Successfully</h3>
-                <p><strong>{customer['name']}</strong> • {factors.get('level', 'Personalized')} • {orchestration_result['email'].get('word_count', 0)} words</p>
+                <h3>✅ Multi-Channel Success</h3>
+                <p><strong>{customer['name']}</strong> • Both Email & SMS Generated • {factors.get('level', 'Personalized')}</p>
             </div>
             ''', unsafe_allow_html=True)
-            
-            # Email showcase
-            email_content = orchestration_result['email']['content']
-            
-            st.markdown('<div class="email-showcase">', unsafe_allow_html=True)
-            st.markdown("### 📧 Personalized Email")
-            st.markdown(email_content)
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Quick stats
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Words", orchestration_result['email'].get('word_count', 0))
-            with col2:
-                st.metric("Language", orchestration_result['email'].get('language', 'English'))
-            with col3:
-                st.metric("Tone", orchestration_result['email'].get('tone', 'Professional'))
-            with col4:
-                processing_time = orchestration_result.get('processing_time', 0)
-                st.metric("Time", f"{processing_time:.1f}s")
-            
-            # Personalization Analysis - Show Usage Stats Connection
-            with st.expander("🎯 Personalization Analysis", expanded=True):
-                st.markdown(f"### {factors['level']}")
-                score = factors['personalization_score']
-                st.progress(min(score / 100, 1.0))
-                st.caption(f"Personalization Score: {score}/100")
+        elif email_success and sms_skipped:
+            st.markdown(f'''
+            <div class="success-banner">
+                <h3>✅ Email Success • SMS Skipped</h3>
+                <p><strong>{customer['name']}</strong> • {sms_result.get('sms', {}).get('skip_reason', 'Rules-based skip')}</p>
+            </div>
+            ''', unsafe_allow_html=True)
+        
+        # Tabbed interface for channels
+        tab1, tab2, tab3 = st.tabs(["📧 Email", "📱 SMS", "🎯 Analysis"])
+        
+        with tab1:
+            # EMAIL TAB
+            if email_success:
+                email_content = email_result['email']['content']
                 
-                # Show how customer usage stats influenced content
-                st.markdown("**📊 Usage Stats → Content Adaptation:**")
+                st.markdown('<div class="email-showcase">', unsafe_allow_html=True)
+                st.markdown("### 📧 Personalized Email")
+                st.markdown(email_content)
+                st.markdown('</div>', unsafe_allow_html=True)
                 
-                # Digital usage connection
-                digital_logins = customer.get('digital_logins_per_month', 0)
-                mobile_usage = customer.get('mobile_app_usage', 'Unknown')
-                email_opens = customer.get('email_opens_per_month', 0)
+                # Email stats
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Words", email_result['email'].get('word_count', 0))
+                with col2:
+                    st.metric("Language", email_result['email'].get('language', 'English'))
+                with col3:
+                    st.metric("Tone", email_result['email'].get('tone', 'Professional'))
+                with col4:
+                    processing_time = email_result.get('processing_time', 0)
+                    st.metric("Time", f"{processing_time:.1f}s")
                 
-                if digital_logins > 15:
-                    st.write(f"📱 **{digital_logins} logins/month** → Tech-savvy language, app references")
-                if mobile_usage == 'high' or mobile_usage == 'Daily':
-                    st.write(f"📲 **High mobile usage** → Mobile-first features emphasized")
-                if email_opens > 15:
-                    st.write(f"📧 **{email_opens} email opens/month** → Detailed content, engaging format")
+                # Email quality details
+                with st.expander("📊 Email Quality Details", expanded=False):
+                    if email_result.get('email_validation'):
+                        email_val = email_result['email_validation']
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            quality_score = email_val.get('quality_score', 0)
+                            st.metric("Quality Score", f"{quality_score:.2f}/1.0")
+                        with col2:
+                            status_text = email_val.get('status_text', 'Unknown')
+                            st.metric("Status", status_text)
+                        with col3:
+                            personalization_score = email_val.get('personalization_score', 0)
+                            st.metric("Personalization", f"{personalization_score:.2f}/1.0")
+                        
+                        factors_applied = email_val.get('personalization_factors_applied', 0)
+                        context_integration = email_val.get('context_integration', 0)
+                        st.write(f"• **Personalization Factors:** {factors_applied}/5 applied")
+                        st.write(f"• **Context Integration:** {context_integration} customer-specific elements")
                 
-                # Life stage connection
-                age = customer.get('age', 'unknown')
-                life_event = customer.get('recent_life_events', 'None')
-                if age != 'unknown' and int(age) < 25:
-                    st.write(f"🎓 **Age {age} + {life_event}** → Casual tone, university context")
-                
-                # Financial behavior connection  
-                balance = customer.get('account_balance', 0)
-                recent_transactions = customer.get('recent_transactions', 0)
-                if balance < 2000 and recent_transactions > 50:
-                    st.write(f"💰 **£{balance:,} balance, {recent_transactions} transactions** → Budgeting focus, student-friendly content")
-                
-                # Show applied AI factors
-                applied_factors = orchestration_result['email'].get('personalization_factors', [])
-                if applied_factors:
-                    st.markdown("**🤖 AI Personalization Factors Applied:**")
-                    for factor in applied_factors:
-                        st.write(f"• {factor}")
-            
-            # Content Quality Check - Fixed Display
-            with st.expander("✅ Content Quality Check", expanded=False):
-                # Email quality from new system (FIXED)
-                if orchestration_result.get('email_validation'):
-                    email_val = orchestration_result['email_validation']
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        quality_score = email_val.get('quality_score', 0)
-                        st.metric("Quality Score", f"{quality_score:.2f}/1.0")
-                    with col2:
-                        status_text = email_val.get('status_text', 'Unknown')
-                        if quality_score >= 0.8:
-                            st.metric("Status", f"🌟 {status_text}")
-                        elif quality_score >= 0.6:  
-                            st.metric("Status", f"✅ {status_text}")
-                        else:
-                            st.metric("Status", f"⚠️ {status_text}")
-                    with col3:
-                        personalization_score = email_val.get('personalization_score', 0)
-                        st.metric("Personalization", f"{personalization_score:.2f}/1.0")
-                    
-                    # Show what drove the quality score
-                    st.markdown("**📈 Quality Breakdown:**")
-                    factors_applied = email_val.get('personalization_factors_applied', 0)
-                    context_integration = email_val.get('context_integration', 0)
-                    st.write(f"• **Personalization Factors:** {factors_applied}/5 applied")
-                    st.write(f"• **Context Integration:** {context_integration} customer-specific elements")
-                    if email_val.get('has_greeting'):
-                        st.write("• **Structure:** ✅ Proper greeting")
-                    if email_val.get('has_closing'):
-                        st.write("• **Structure:** ✅ Professional closing")
-                    
-                    # Only show REAL issues (not placeholder complaints)
-                    real_issues = [issue for issue in email_val.get('issues', []) if 'placeholder' not in issue.lower()]
-                    if real_issues:
-                        st.warning("**Real Issues:** " + ", ".join(real_issues))
-                    
-                    if email_val.get('warnings'):
-                        st.info("**Suggestions:** " + ", ".join(email_val['warnings']))
-                
-                # Content preservation (separate from quality)
-                if orchestration_result.get('content_validation'):
-                    content_val = orchestration_result['content_validation']
-                    summary = content_val.get('summary', {})
-                    coverage = summary.get('coverage_percentage', 0)
-                    
-                    st.markdown("**📋 Content Preservation (Separate Check):**")
-                    st.progress(coverage / 100)
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Coverage", f"{coverage:.0f}%")
-                    with col2:
-                        st.metric("Key Points", f"{summary.get('total_points', 0)}")
-                    
-                    # Show realistic content preservation status
-                    if coverage >= 95:
-                        st.success("🎉 Excellent content preservation!")
-                    elif coverage >= 85:
-                        st.success("✅ Very good content preservation")
-                    elif coverage >= 75:
-                        st.info("📝 Good content preservation")
-                    else:
-                        st.warning("⚠️ Some content may be missing")
-            
-            # Processing Details - Clean Display
-            with st.expander("⚙️ System Processing Details", expanded=False):
-                steps = orchestration_result.get('processing_steps', [])
-                st.markdown("**Processing Pipeline:**")
-                for step in steps:
-                    st.write(f"• {step}")
-                
-                if orchestration_result.get('warnings'):
-                    st.markdown("**⚠️ Warnings:**")
-                    for warning in orchestration_result['warnings']:
-                        st.write(f"• {warning}")
-            
-            # Export Options
-            st.markdown("### 📥 Export")
-            col1, col2 = st.columns(2)
-            
-            with col1:
+                # Download email
                 st.download_button(
                     "📧 Download Email",
                     email_content,
@@ -659,66 +637,213 @@ with col2:
                     mime="text/plain",
                     use_container_width=True
                 )
-            
-            with col2:
-                export_data = {
-                    'customer': customer,
-                    'email': email_content,
-                    'personalization_factors': applied_factors,
-                    'quality_metrics': orchestration_result.get('email_validation', {}),
-                    'generated_at': datetime.now().isoformat()
-                }
                 
+            else:
+                st.error("❌ Email generation failed")
+                if email_result.get('errors'):
+                    for error in email_result['errors']:
+                        st.write(f"• {error}")
+        
+        with tab2:
+            # SMS TAB
+            if sms_success:
+                sms_content = sms_result['sms']['content']
+                char_count = sms_result['sms'].get('character_count', len(sms_content))
+                segment_count = sms_result['sms'].get('segment_count', 1)
+                
+                st.markdown('<div class="sms-showcase">', unsafe_allow_html=True)
+                st.markdown("### 📱 Personalized SMS")
+                
+                # SMS preview in phone-like interface
+                st.markdown(f'''
+                <div class="sms-preview">
+                    {sms_content}
+                </div>
+                ''', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # SMS stats
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Characters", f"{char_count}")
+                with col2:
+                    st.metric("Segments", f"{segment_count}")
+                with col3:
+                    cost = segment_count * 0.05  # 5p per segment
+                    st.metric("Cost", f"£{cost:.2f}")
+                with col4:
+                    processing_time = sms_result.get('processing_time', 0)
+                    st.metric("Time", f"{processing_time:.1f}s")
+                
+                # SMS quality details
+                with st.expander("📊 SMS Quality Details", expanded=False):
+                    if sms_result.get('sms_validation'):
+                        sms_val = sms_result['sms_validation']
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            quality_score = sms_val.get('quality_score', 0)
+                            st.metric("Quality Score", f"{quality_score:.2f}/1.0")
+                        with col2:
+                            status_text = sms_val.get('status_text', 'Unknown')
+                            st.metric("Status", status_text)
+                        with col3:
+                            target_length = sms_val.get('target_length', 160)
+                            st.metric("Target Length", f"{target_length}")
+                        
+                        if sms_val.get('critical_content_preserved'):
+                            st.success("✅ Critical content preserved")
+                        else:
+                            st.warning("⚠️ Some critical content may be missing")
+                
+                # Download SMS
                 st.download_button(
-                    "📊 Download Report",
-                    json.dumps(export_data, indent=2),
-                    file_name=f"personalization_report_{customer['customer_id']}.json",
-                    mime="application/json",
+                    "📱 Download SMS",
+                    sms_content,
+                    file_name=f"personalized_sms_{customer['customer_id']}.txt",
+                    mime="text/plain",
                     use_container_width=True
                 )
+                
+            elif sms_skipped:
+                st.markdown(f'''
+                <div class="skipped-banner">
+                    <h3>⏭️ SMS Skipped</h3>
+                    <p><strong>Reason:</strong> {sms_result.get('sms', {}).get('skip_reason', 'Customer rules')}</p>
+                    <p><strong>Customer Segment:</strong> {sms_result.get('eligibility', {}).get('customer_segment', 'Unknown')}</p>
+                </div>
+                ''', unsafe_allow_html=True)
+                
+                # Show eligibility details
+                with st.expander("🔍 SMS Eligibility Details", expanded=True):
+                    eligibility = sms_result.get('eligibility', {})
+                    
+                    st.write(f"**Customer Segment:** {eligibility.get('customer_segment', 'Unknown')}")
+                    st.write(f"**Eligible:** {'Yes' if eligibility.get('eligible') else 'No'}")
+                    st.write(f"**Reason:** {eligibility.get('reason', 'Unknown')}")
+                    st.write(f"**Confidence:** {eligibility.get('confidence', 0):.1%}")
+                    
+                    # Explain the rules
+                    st.markdown("**📋 SMS Rules:**")
+                    st.write("• **DIGITAL customers:** App/email preferred, SMS only for urgent")
+                    st.write("• **ASSISTED customers:** SMS is ideal channel")
+                    st.write("• **TRADITIONAL customers:** No SMS - prefer letter/phone")
+                    st.write("• **Senior customers (75+):** SMS generally avoided")
+                
+            else:
+                st.error("❌ SMS generation failed")
+                if sms_result.get('errors'):
+                    for error in sms_result['errors']:
+                        st.write(f"• {error}")
         
-        else:
-            # Error display
-            st.error("❌ Email Generation Failed")
+        with tab3:
+            # ANALYSIS TAB
+            st.markdown("### 🎯 Personalization Analysis")
             
-            if orchestration_result.get('errors'):
-                st.markdown("**Errors:**")
-                for error in orchestration_result['errors']:
-                    st.write(f"• {error}")
+            # Overall personalization score
+            st.markdown(f"### {factors['level']}")
+            score = factors['personalization_score']
+            st.progress(min(score / 100, 1.0))
+            st.caption(f"Personalization Score: {score}/100")
             
-            if orchestration_result.get('warnings'):
-                st.markdown("**Warnings:**")
-                for warning in orchestration_result['warnings']:
-                    st.write(f"• {warning}")
+            # Channel strategy
+            with st.expander("📺 Channel Strategy", expanded=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**📧 Email:**")
+                    if email_success:
+                        st.success("✅ Generated successfully")
+                    else:
+                        st.error("❌ Failed to generate")
+                
+                with col2:
+                    st.markdown("**📱 SMS:**")
+                    if sms_success:
+                        st.success("✅ Generated successfully")
+                    elif sms_skipped:
+                        st.warning("⏭️ Skipped (rules-based)")
+                    else:
+                        st.error("❌ Failed to generate")
+            
+            # Show how customer data influenced personalization
+            with st.expander("📊 Data-Driven Personalization", expanded=True):
+                st.markdown("**How customer data shaped the content:**")
+                
+                for factor in factors['primary_factors']:
+                    st.write(f"• {factor}")
+                
+                for consideration in factors['special_considerations']:
+                    st.write(f"• {consideration}")
+            
+            # Processing details
+            with st.expander("⚙️ Processing Pipeline", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**📧 Email Steps:**")
+                    for step in email_result.get('processing_steps', []):
+                        st.write(f"• {step}")
+                
+                with col2:
+                    st.markdown("**📱 SMS Steps:**")
+                    for step in sms_result.get('processing_steps', []):
+                        st.write(f"• {step}")
     
     else:
-        st.info("👈 Upload a letter and select a customer to generate personalized email")
+        st.info("👈 Upload a letter and select a customer to generate multi-channel personalization")
         
         # Show capabilities
-        st.markdown("### 🎯 Modular Email System Features")
-        st.write("✅ **Content Preservation** - Advanced validation ensures nothing is lost")
-        st.write("✅ **Deep Personalization** - Context-aware content that feels natural")
-        st.write("✅ **Quality Validation** - Multiple layers of quality checking")
-        st.write("✅ **Processing Pipeline** - Clean, modular architecture")
-        st.write("✅ **Export Options** - Email and detailed reports")
+        st.markdown("### 🎯 Multi-Channel Capabilities")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**📧 Email Module**")
+            st.write("✅ Content Preservation")
+            st.write("✅ Deep Personalization")
+            st.write("✅ Quality Validation")
+            st.write("✅ Multi-language Support")
+        
+        with col2:
+            st.markdown("**📱 SMS Module**")
+            st.write("✅ Rules-based Eligibility")
+            st.write("✅ Smart Character Limits")
+            st.write("✅ Segment Cost Optimization")
+            st.write("✅ Customer Segment Routing")
 
 # Sidebar for system status
 with st.sidebar:
-    st.markdown("### ⚙️ System Status")
+    st.markdown("### ⚙️ Multi-Channel System Status")
     
-    orchestrator_status = "✅ Ready" if st.session_state.email_orchestrator else "❌ Error"
+    email_status = "✅ Ready" if st.session_state.email_orchestrator else "❌ Error"
+    sms_status = "✅ Ready" if st.session_state.sms_orchestrator else "❌ Error"
     classifier_status = "✅ Ready" if st.session_state.ai_classifier else "❌ Error"
     
-    st.write(f"**Email Orchestrator:** {orchestrator_status}")
+    st.write(f"**Email Orchestrator:** {email_status}")
+    st.write(f"**SMS Orchestrator:** {sms_status}")
     st.write(f"**AI Classifier:** {classifier_status}")
     st.write(f"**Voice Generator:** ✅ Ready")
     
-    if st.button("🔄 Refresh System"):
+    st.markdown("### 📊 Channel Statistics")
+    if st.session_state.current_results:
+        email_generated = bool(st.session_state.current_results.get('email_result', {}).get('email', {}).get('content'))
+        sms_generated = bool(st.session_state.current_results.get('sms_result', {}).get('sms', {}).get('content')) and not st.session_state.current_results.get('sms_result', {}).get('sms', {}).get('skipped')
+        sms_skipped = st.session_state.current_results.get('sms_result', {}).get('sms', {}).get('skipped', False)
+        
+        st.write(f"**Email:** {'✅ Generated' if email_generated else '❌ Not generated'}")
+        st.write(f"**SMS:** {'✅ Generated' if sms_generated else '⏭️ Skipped' if sms_skipped else '❌ Not generated'}")
+    else:
+        st.write("No results yet")
+    
+    if st.button("🔄 Refresh All Systems"):
         st.session_state.ai_classifier = initialize_ai_classifier()
         st.session_state.email_orchestrator = SimpleEmailOrchestrator()
-        st.success("System refreshed!")
+        st.session_state.sms_orchestrator = SimpleSMSOrchestrator()
+        st.success("All systems refreshed!")
         st.rerun()
 
 # Footer
 st.markdown("---")
-st.caption("Powered by Claude 4 Sonnet | Lloyds Banking Group | Modular Personalization System")
+st.caption("Powered by Claude 4 Sonnet | Lloyds Banking Group | Modular Multi-Channel System")
