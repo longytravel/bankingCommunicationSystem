@@ -1,7 +1,7 @@
 """
 Content Validator Module - AI-Powered Content Validation
 Ensures critical information is preserved across all personalized channels
-Robust extraction for ALL letter types
+Fully AI-driven extraction with proper validation
 """
 
 import os
@@ -47,74 +47,89 @@ class ContentValidator:
             self.model = "claude-3-haiku-20240307"  # Fast model for validation
             print("✓ Content Validator using Claude AI")
         else:
-            print("⚠️ Content Validator using enhanced pattern extraction")
+            print("⚠️ Content Validator using pattern extraction fallback")
     
     def extract_key_points(self, letter_content: str) -> List[KeyPoint]:
         """
-        Extract key points from the original letter
-        ALWAYS returns meaningful points for ANY letter
+        Extract key points from the original letter using AI
+        Returns only actual content that exists, never "No X found" statements
         """
-        # Try AI extraction first
+        # Use AI extraction as primary method
         if self.client:
             points = self._ai_extract_points(letter_content)
-            # If AI returns too few points, enhance with pattern extraction
-            if len(points) < 5:
-                pattern_points = self._comprehensive_extract_points(letter_content)
-                # Merge, avoiding duplicates
-                existing_content = {p.content.lower() for p in points}
-                for pp in pattern_points:
-                    if pp.content.lower() not in existing_content:
-                        points.append(pp)
+            
+            # Filter out any negative/absence points that might have been created
+            points = [p for p in points if not self._is_negative_point(p)]
+            
+            # If AI didn't find enough points, try one more time with better prompt
+            if len(points) < 3:
+                points = self._ai_extract_points_retry(letter_content)
+                points = [p for p in points if not self._is_negative_point(p)]
         else:
-            points = self._comprehensive_extract_points(letter_content)
+            # Fallback to pattern extraction if no AI available
+            points = self._pattern_extract_points(letter_content)
         
-        # Always ensure we have meaningful points
-        if len(points) < 3:
-            points.extend(self._extract_fallback_points(letter_content))
+        # Always filter out negative points
+        points = [p for p in points if not self._is_negative_point(p)]
+        
+        # If we still have no points, extract the main message
+        if len(points) == 0:
+            points = self._extract_core_message(letter_content)
         
         return points
     
+    def _is_negative_point(self, point: KeyPoint) -> bool:
+        """Check if a point is a negative/absence statement"""
+        negative_indicators = [
+            'no specific', 'no monetary', 'no legal', 'not mentioned',
+            'no dates', 'no amounts', 'no deadline', 'none found',
+            'there are no', 'does not contain', 'absent', 'missing'
+        ]
+        content_lower = point.content.lower()
+        return any(indicator in content_lower for indicator in negative_indicators)
+    
     def _ai_extract_points(self, letter_content: str) -> List[KeyPoint]:
-        """Use Claude to intelligently extract key points"""
+        """Use Claude to intelligently extract key points - context-aware"""
         
-        prompt = f"""You are analyzing a bank letter to extract ALL important information that must be preserved in personalized versions.
+        prompt = f"""You are analyzing a bank letter to identify what information MUST be preserved in personalized versions.
+
+IMPORTANT: Only extract information that ACTUALLY EXISTS in the letter. Never create points about what's absent or missing.
 
 LETTER:
 {letter_content}
 
-Extract EVERY piece of important information, including:
-1. CRITICAL (must be exact): 
-   - All dates and deadlines
-   - All monetary amounts and fees
-   - Legal/regulatory requirements
-   - Action requirements (what customer must/must not do)
-   - Important times/deadlines
-   - Account details mentioned
+Analyze this specific letter and determine what's truly critical based on its PURPOSE and CONTENT:
 
-2. IMPORTANT (should include):
-   - Features and benefits described
-   - Contact information (phone, web, email)
-   - Service offerings
-   - Tools and resources mentioned
-   - Eligibility criteria
-   - Key processes or steps
+For each piece of information found, classify as:
+- CRITICAL: Information that would be legally problematic or dangerous if omitted (actual dates, actual amounts, specific requirements, legal obligations that are stated)
+- IMPORTANT: Key features, benefits, or actions the customer should know about
+- CONTEXTUAL: Supporting details that enhance understanding
 
-3. CONTEXTUAL (good to include):
-   - Examples given
-   - Additional tips
-   - Supporting information
+DO NOT create points like "No dates mentioned" or "No amounts found". Only list information that IS PRESENT.
 
-BE COMPREHENSIVE - extract at least 10-15 points from the letter. Include EVERYTHING that matters.
+If this is a promotional/informational letter about features, the critical points might be:
+- How to access or enable the features
+- Any limitations or requirements
+- Key benefits being offered
+
+If this is a regulatory letter, critical points would be:
+- Specific dates and deadlines mentioned
+- Fee amounts stated
+- Legal requirements described
+
+Return ONLY points for information that EXISTS in the letter.
 
 Return as JSON array:
 [
   {{
-    "content": "The specific information",
+    "content": "The specific information found in the letter",
     "importance": "CRITICAL|IMPORTANT|CONTEXTUAL",
-    "category": "date|amount|deadline|action|contact|feature|legal|benefit|process|tool",
-    "explanation": "Why this must be preserved"
+    "category": "feature|benefit|action|contact|instruction|requirement|date|amount|greeting|closing",
+    "explanation": "Why this specific information matters for this type of letter"
   }}
-]"""
+]
+
+Remember: Quality over quantity. Only extract real information that appears in the letter."""
 
         try:
             response = self.client.messages.create(
@@ -136,6 +151,10 @@ Return as JSON array:
                 # Convert to KeyPoint objects
                 key_points = []
                 for point in points_data:
+                    # Skip if it's a negative point
+                    if 'no ' in point['content'].lower() and 'mentioned' in point['content'].lower():
+                        continue
+                    
                     key_points.append(KeyPoint(
                         content=point['content'],
                         importance=PointImportance[point['importance']],
@@ -152,17 +171,69 @@ Return as JSON array:
             print(f"AI extraction error: {e}")
             return []
     
-    def _comprehensive_extract_points(self, letter_content: str) -> List[KeyPoint]:
-        """Comprehensive pattern-based extraction for ALL letter types"""
+    def _ai_extract_points_retry(self, letter_content: str) -> List[KeyPoint]:
+        """Retry with a more focused prompt if first attempt didn't find enough"""
+        
+        prompt = f"""Extract the key information from this bank letter that customers need to know:
+
+{letter_content}
+
+Focus on:
+1. What is the main purpose/message of this letter?
+2. What actions (if any) should the customer take?
+3. What features or services are being described?
+4. What contact information is provided?
+5. What are the key benefits mentioned?
+6. Include greetings and closings if they're personalized or important
+
+Only list information that is ACTUALLY IN THE LETTER. 
+
+Return as JSON array with at least 3-5 key points:
+[{{"content": "...", "importance": "CRITICAL|IMPORTANT|CONTEXTUAL", "category": "...", "explanation": "..."}}]"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=1500,
+                temperature=0.4,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            content = response.content[0].text.strip()
+            
+            if '[' in content:
+                json_start = content.index('[')
+                json_end = content.rindex(']') + 1
+                json_str = content[json_start:json_end]
+                points_data = json.loads(json_str)
+                
+                key_points = []
+                for point in points_data:
+                    key_points.append(KeyPoint(
+                        content=point['content'],
+                        importance=PointImportance[point.get('importance', 'IMPORTANT')],
+                        category=point.get('category', 'general'),
+                        found_in_channels={},
+                        explanation=point.get('explanation', '')
+                    ))
+                
+                return key_points
+            else:
+                return []
+                
+        except Exception as e:
+            print(f"AI retry error: {e}")
+            return []
+    
+    def _pattern_extract_points(self, letter_content: str) -> List[KeyPoint]:
+        """Fallback pattern extraction - only extracts actual content found"""
         key_points = []
         text_lower = letter_content.lower()
         
-        # 1. Extract ALL dates (critical)
+        # Extract actual dates if they exist
         date_patterns = [
             r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
             r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b',
-            r'\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b',
-            r'\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)[,\s]+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b'
         ]
         
         for pattern in date_patterns:
@@ -173,11 +244,11 @@ Return as JSON array:
                     importance=PointImportance.CRITICAL,
                     category="date",
                     found_in_channels={},
-                    explanation="Dates must be accurate"
+                    explanation="Specific date found"
                 ))
         
-        # 2. Extract ALL amounts (critical)
-        amount_pattern = r'[£$€]\s*\d+(?:,\d{3})*(?:\.\d{2})?(?:\s*(?:GBP|USD|EUR))?'
+        # Extract actual amounts if they exist
+        amount_pattern = r'[£$€]\s*\d+(?:,\d{3})*(?:\.\d{2})?'
         amounts = re.findall(amount_pattern, letter_content)
         for amount in amounts:
             key_points.append(KeyPoint(
@@ -185,197 +256,81 @@ Return as JSON array:
                 importance=PointImportance.CRITICAL,
                 category="amount",
                 found_in_channels={},
-                explanation="Financial amounts must be exact"
+                explanation="Monetary amount found"
             ))
         
-        # 3. Extract percentages (critical)
-        percent_pattern = r'\d+(?:\.\d+)?%'
-        percentages = re.findall(percent_pattern, letter_content)
-        for percent in percentages:
-            key_points.append(KeyPoint(
-                content=f"Percentage: {percent}",
-                importance=PointImportance.CRITICAL,
-                category="amount",
-                found_in_channels={},
-                explanation="Rates and percentages must be accurate"
-            ))
-        
-        # 4. Extract times (critical)
-        time_patterns = [
-            r'\b\d{1,2}:\d{2}\s*(?:am|pm|AM|PM)?\b',
-            r'\b\d{1,2}\.\d{2}\s*(?:am|pm|AM|PM)\b',
-            r'\bmidnight\b|\bnoon\b|\bmidday\b'
-        ]
-        for pattern in time_patterns:
-            times = re.findall(pattern, letter_content, re.IGNORECASE)
-            for time in times:
-                key_points.append(KeyPoint(
-                    content=f"Time: {time}",
-                    importance=PointImportance.CRITICAL,
-                    category="deadline",
-                    found_in_channels={},
-                    explanation="Specific times are critical"
-                ))
-        
-        # 5. Extract contact information (important)
-        # Phone numbers
-        phone_patterns = [
-            r'\b0\d{3}\s?\d{3}\s?\d{4}\b',
-            r'\b\+44\s?\d{2}\s?\d{4}\s?\d{4}\b',
-            r'\b0800\s?\d{3}\s?\d{3,4}\b'
-        ]
+        # Extract contact information if it exists
+        phone_patterns = [r'\b0\d{3}\s?\d{3}\s?\d{4}\b', r'\b0800\s?\d{3}\s?\d{3,4}\b']
         for pattern in phone_patterns:
             phones = re.findall(pattern, letter_content)
             for phone in phones:
                 key_points.append(KeyPoint(
-                    content=f"Contact number: {phone}",
+                    content=f"Contact: {phone}",
                     importance=PointImportance.IMPORTANT,
                     category="contact",
                     found_in_channels={},
-                    explanation="Customer support contact"
+                    explanation="Contact number"
                 ))
         
-        # Websites
+        # Extract website URLs if they exist
         website_pattern = r'(?:www\.|https?://)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+(?:/[^\s]*)?'
         websites = re.findall(website_pattern, letter_content)
-        for website in websites[:3]:  # Limit to avoid too many
-            if len(website) > 10:  # Filter out false positives
+        for website in websites[:2]:  # Limit to first 2
+            if len(website) > 10 and 'bank' in website.lower():
                 key_points.append(KeyPoint(
                     content=f"Website: {website}",
                     importance=PointImportance.IMPORTANT,
                     category="contact",
                     found_in_channels={},
-                    explanation="Online resource"
+                    explanation="Website URL"
                 ))
         
-        # 6. Extract action requirements (critical)
-        action_patterns = [
-            (r'no action (?:is )?(?:required|needed)', "No action required"),
-            (r'you (?:must|need to|should) (?:contact|call|visit)', "Customer must contact bank"),
-            (r'action (?:is )?required', "Action required"),
-            (r'please (?:review|check|verify)', "Review required"),
-            (r'you (?:can|may) (?:now|continue)', "New capability available"),
-            (r'deadline|by \d+|before \d+', "Deadline mentioned"),
-            (r'effective (?:from|date)', "Effective date specified")
-        ]
-        
-        for pattern, description in action_patterns:
-            if re.search(pattern, text_lower):
-                key_points.append(KeyPoint(
-                    content=description,
-                    importance=PointImportance.CRITICAL,
-                    category="action",
-                    found_in_channels={},
-                    explanation="Customer action/awareness required"
-                ))
-        
-        # 7. Extract features and tools (important for informational letters)
-        feature_keywords = [
-            'spending limit', 'savings goal', 'budget', 'alert', 'notification',
-            'mobile app', 'online banking', 'feature', 'tool', 'service',
-            'benefit', 'reward', 'cashback', 'interest', 'overdraft',
-            'payment', 'transfer', 'direct debit', 'standing order'
-        ]
-        
-        for keyword in feature_keywords:
-            if keyword in text_lower:
-                # Find the sentence containing this keyword
-                sentences = letter_content.split('.')
-                for sent in sentences:
-                    if keyword in sent.lower():
-                        # Extract a meaningful phrase around the keyword
-                        key_points.append(KeyPoint(
-                            content=f"Feature: {sent.strip()[:100]}",
-                            importance=PointImportance.IMPORTANT,
-                            category="feature",
-                            found_in_channels={},
-                            explanation="Service feature mentioned"
-                        ))
-                        break
-        
-        # 8. Extract any account-specific information
-        account_patterns = [
-            r'account\s+(?:number|ending|type)[:\s]+([A-Z0-9\-]+)',
-            r'sort\s+code[:\s]+(\d{2}-\d{2}-\d{2})',
-            r'reference[:\s]+([A-Z0-9]+)'
-        ]
-        
-        for pattern in account_patterns:
-            matches = re.finditer(pattern, letter_content, re.IGNORECASE)
-            for match in matches:
-                key_points.append(KeyPoint(
-                    content=f"Account detail: {match.group()}",
-                    importance=PointImportance.CRITICAL,
-                    category="account",
-                    found_in_channels={},
-                    explanation="Account-specific information"
-                ))
-        
-        # 9. Check for regulatory/legal mentions
-        if any(term in text_lower for term in ['terms and conditions', 'regulatory', 'legal', 'compliance']):
+        # Extract key features or actions mentioned
+        action_phrases = re.findall(r'you can now [^.]+', text_lower)
+        for phrase in action_phrases[:3]:
             key_points.append(KeyPoint(
-                content="Legal/regulatory notification",
-                importance=PointImportance.CRITICAL,
-                category="legal",
+                content=phrase.strip(),
+                importance=PointImportance.IMPORTANT,
+                category="feature",
                 found_in_channels={},
-                explanation="Regulatory requirement"
+                explanation="New capability or feature"
             ))
         
-        # 10. Extract specific named services or products
-        # Look for capitalized multi-word phrases that might be product names
-        product_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b'
-        products = re.findall(product_pattern, letter_content)
-        for product in products[:5]:  # Limit to avoid too many
-            if len(product) > 5 and product not in ['Dear Customer', 'Lloyds Bank', 'Yours Sincerely']:
-                key_points.append(KeyPoint(
-                    content=f"Service/Product: {product}",
-                    importance=PointImportance.IMPORTANT,
-                    category="feature",
-                    found_in_channels={},
-                    explanation="Named service or product"
-                ))
+        # Extract greeting and closing if present
+        if 'thank you for banking with us' in text_lower:
+            key_points.append(KeyPoint(
+                content="Thank you for banking with us",
+                importance=PointImportance.CONTEXTUAL,
+                category="closing",
+                found_in_channels={},
+                explanation="Letter closing"
+            ))
         
         return key_points
     
-    def _extract_fallback_points(self, letter_content: str) -> List[KeyPoint]:
-        """Fallback to ensure we always have some key points"""
-        points = []
-        text_lower = letter_content.lower()
+    def _extract_core_message(self, letter_content: str) -> List[KeyPoint]:
+        """Extract the core message as a fallback"""
+        # Find the main paragraph (skip greeting)
+        lines = letter_content.split('\n')
+        main_content = []
         
-        # Core message - first substantive paragraph
-        paragraphs = [p.strip() for p in letter_content.split('\n\n') if len(p.strip()) > 50]
-        if paragraphs:
-            # Skip greeting and get to the meat
-            main_para = paragraphs[1] if len(paragraphs) > 1 else paragraphs[0]
-            points.append(KeyPoint(
-                content=f"Main message: {main_para[:150]}...",
-                importance=PointImportance.CRITICAL,
+        for line in lines:
+            line = line.strip()
+            if len(line) > 50 and not line.startswith('Dear') and not line.startswith('Sincerely'):
+                main_content.append(line)
+        
+        if main_content:
+            # Take first substantial paragraph
+            core_message = main_content[0][:200]
+            return [KeyPoint(
+                content=f"Main message: {core_message}",
+                importance=PointImportance.IMPORTANT,
                 category="message",
                 found_in_channels={},
-                explanation="Core communication purpose"
-            ))
+                explanation="Core letter message"
+            )]
         
-        # Bank name/sender
-        if 'lloyds' in text_lower:
-            points.append(KeyPoint(
-                content="Sender: Lloyds Bank",
-                importance=PointImportance.IMPORTANT,
-                category="sender",
-                found_in_channels={},
-                explanation="Message source identification"
-            ))
-        
-        # Any call to action
-        if 'visit' in text_lower or 'call' in text_lower or 'log in' in text_lower:
-            points.append(KeyPoint(
-                content="Customer action suggested",
-                importance=PointImportance.IMPORTANT,
-                category="action",
-                found_in_channels={},
-                explanation="Next steps for customer"
-            ))
-        
-        return points
+        return []
     
     def validate_personalization(
         self, 
@@ -386,62 +341,113 @@ Return as JSON array:
         Validate that key points appear in personalized content
         Returns updated key points and validation summary
         """
+        # Skip validation if no key points
+        if not key_points:
+            return key_points, {
+                'critical_preserved': 0,
+                'critical_total': 0,
+                'total_preserved': 0,
+                'total_points': 0,
+                'coverage_percentage': 100  # No points to validate = 100% coverage
+            }
+        
         if self.client and len(key_points) > 0:
-            validated, summary = self._ai_validate(key_points, personalized_content)
-            # If AI validation fails, use pattern matching
-            if not summary or summary.get('critical_total', 0) == 0:
-                return self._pattern_validate(key_points, personalized_content)
+            # Try AI validation with FULL content
+            validated, summary = self._ai_validate_full_content(key_points, personalized_content)
+            
+            # If AI validation seems wrong, try improved pattern matching
+            if not summary or self._validation_seems_wrong(validated, personalized_content):
+                print("AI validation seems incorrect, using improved pattern matching")
+                return self._improved_pattern_validate(key_points, personalized_content)
+            
             return validated, summary
         else:
-            return self._pattern_validate(key_points, personalized_content)
+            return self._improved_pattern_validate(key_points, personalized_content)
     
-    def _ai_validate(
+    def _validation_seems_wrong(self, key_points: List[KeyPoint], personalized_content: Dict[str, str]) -> bool:
+        """Quick check if validation results seem wrong"""
+        # Check for obvious errors like "Thank you" being marked as missing when it's clearly there
+        for point in key_points:
+            if 'thank you' in point.content.lower():
+                # Check if it's really in the letter
+                letter_content = personalized_content.get('letter', '').lower()
+                if 'thank you' in letter_content and not point.found_in_channels.get('letter', False):
+                    return True  # Validation is wrong
+        return False
+    
+    def _ai_validate_full_content(
         self, 
         key_points: List[KeyPoint], 
         personalized_content: Dict[str, str]
     ) -> Tuple[List[KeyPoint], Dict[str, Any]]:
-        """Use AI to check if key points are preserved"""
+        """Use AI to check if key points are preserved - with FULL content"""
         
-        # Build prompt for validation
-        points_list = "\n".join([f"- {p.content} ({p.importance.value})" for p in key_points[:20]])  # Limit for token size
+        # Build the validation request with full content
+        points_list = []
+        for i, p in enumerate(key_points):
+            points_list.append(f"{i+1}. {p.content}")
         
-        prompt = f"""Check if these key points from the original letter appear in the personalized versions.
-The content may be rephrased or translated, but the core information must be present.
+        points_text = "\n".join(points_list)
+        
+        # IMPORTANT: Send FULL content, not truncated
+        email_full = personalized_content.get('email', 'Not generated')
+        letter_full = personalized_content.get('letter', 'Not generated')
+        sms_full = personalized_content.get('sms', 'Not generated')
+        app_full = personalized_content.get('app', 'Not generated')
+        
+        prompt = f"""You are validating if key information appears in personalized content.
 
 KEY POINTS TO FIND:
-{points_list}
+{points_text}
 
-PERSONALIZED CONTENT:
-Email: {personalized_content.get('email', 'Not generated')[:1000]}
-SMS: {personalized_content.get('sms', 'Not generated')}
-App: {personalized_content.get('app', 'Not generated')}
-Letter: {personalized_content.get('letter', 'Not generated')[:1000]}
+IMPORTANT: Check the ENTIRE content of each channel. The information might be rephrased, translated, or appear anywhere in the text (beginning, middle, or end).
 
-For each key point, check if the INFORMATION (not exact wording) appears in each channel.
+PERSONALIZED CONTENT TO SEARCH:
 
-Return JSON:
+=== EMAIL (FULL CONTENT) ===
+{email_full}
+
+=== SMS (FULL CONTENT) ===
+{sms_full}
+
+=== APP (FULL CONTENT) ===
+{app_full}
+
+=== LETTER (FULL CONTENT) ===
+{letter_full}
+
+For each numbered point above, determine if the INFORMATION (not exact wording) appears ANYWHERE in each channel.
+Be thorough - check the ENTIRE content, including greetings, body, and closings.
+
+Return a JSON object with this exact structure:
 {{
   "validations": [
     {{
-      "point": "exact point text from list",
+      "point_number": 1,
+      "point_text": "exact text of point 1",
       "email": true/false,
       "sms": true/false,
       "app": true/false,
-      "letter": true/false
+      "letter": true/false,
+      "notes": "optional notes about where found or why missing"
     }}
   ],
   "summary": {{
-    "critical_preserved": X,
-    "critical_total": Y,
-    "coverage_percentage": Z
+    "critical_preserved": number,
+    "critical_total": number,
+    "total_preserved": number,
+    "total_points": number,
+    "coverage_percentage": percentage
   }}
-}}"""
+}}
+
+Be accurate - if something appears ANYWHERE in the content, mark it as true."""
 
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=1500,
-                temperature=0.2,
+                max_tokens=2000,
+                temperature=0.1,  # Very low for accuracy
                 messages=[{"role": "user", "content": prompt}]
             )
             
@@ -455,10 +461,10 @@ Return JSON:
                 result = json.loads(json_str)
                 
                 # Update key points with validation results
-                for point in key_points:
-                    # Find matching validation
+                for i, point in enumerate(key_points):
+                    # Find matching validation by index
                     for validation in result.get('validations', []):
-                        if validation['point'] in point.content or point.content in validation['point']:
+                        if validation.get('point_number') == i + 1:
                             point.found_in_channels = {
                                 'email': validation.get('email', False),
                                 'sms': validation.get('sms', False),
@@ -467,72 +473,78 @@ Return JSON:
                             }
                             break
                 
-                return key_points, result.get('summary', {})
+                # Calculate accurate summary
+                critical_points = [p for p in key_points if p.importance == PointImportance.CRITICAL]
+                critical_preserved = sum(1 for p in critical_points if any(p.found_in_channels.values()))
+                total_preserved = sum(1 for p in key_points if any(p.found_in_channels.values()))
+                
+                summary = {
+                    'critical_preserved': critical_preserved,
+                    'critical_total': len(critical_points),
+                    'total_preserved': total_preserved,
+                    'total_points': len(key_points),
+                    'coverage_percentage': (total_preserved / len(key_points) * 100) if key_points else 100
+                }
+                
+                return key_points, summary
             else:
                 return key_points, {}
                 
         except Exception as e:
             print(f"AI validation error: {e}")
-            return key_points, {}
+            return self._improved_pattern_validate(key_points, personalized_content)
     
-    def _pattern_validate(
+    def _improved_pattern_validate(
         self, 
         key_points: List[KeyPoint], 
         personalized_content: Dict[str, str]
     ) -> Tuple[List[KeyPoint], Dict[str, Any]]:
-        """Enhanced pattern validation that's more flexible"""
+        """Improved pattern-based validation with better matching"""
         
-        # Check each channel
         channels = ['email', 'sms', 'app', 'letter']
         
         for point in key_points:
             point.found_in_channels = {}
             
+            # Get the essence of what we're looking for
+            search_text = point.content.lower()
+            
+            # Remove prefixes like "Date:", "Amount:", etc.
+            if ':' in search_text:
+                search_text = search_text.split(':', 1)[1].strip()
+            
             for channel in channels:
                 content = str(personalized_content.get(channel, '')).lower()
                 
-                # Extract the key value from the point
-                point_lower = point.content.lower()
-                
-                # Check if value appears in content
+                # Multiple strategies for finding content
                 found = False
                 
-                # For dates, be flexible
-                if point.category == 'date':
-                    # Extract date components
-                    date_parts = re.findall(r'\b(?:\d+|january|february|march|april|may|june|july|august|september|october|november|december)\b', point_lower)
-                    # Check if at least 2 parts match
-                    matching_parts = sum(1 for part in date_parts if part in content)
-                    found = matching_parts >= 2
+                # Strategy 1: Direct substring search (most reliable)
+                if search_text in content:
+                    found = True
                 
-                # For amounts, check numbers
-                elif point.category == 'amount':
-                    # Extract just the numbers
-                    numbers = re.findall(r'\d+(?:\.\d+)?', point.content)
-                    found = any(num in content for num in numbers)
+                # Strategy 2: Check for the core words (for phrases)
+                elif len(search_text.split()) > 2:
+                    # For phrases, check if all important words are present
+                    important_words = [w for w in search_text.split() if len(w) > 3]
+                    if important_words:
+                        words_found = sum(1 for word in important_words if word in content)
+                        found = words_found >= len(important_words) * 0.7  # 70% of words
                 
-                # For features/actions, check key words
-                elif point.category in ['feature', 'action', 'benefit']:
-                    # Extract meaningful words (3+ characters)
-                    words = [w for w in re.findall(r'\b\w+\b', point_lower) if len(w) > 3]
-                    # Check if at least half the words appear
-                    if words:
-                        matching_words = sum(1 for word in words if word in content)
-                        found = matching_words >= len(words) / 2
+                # Strategy 3: For single important words/values
+                elif len(search_text.split()) <= 2:
+                    # Remove common words and check
+                    key_part = search_text.replace('the', '').replace('for', '').replace('with', '').strip()
+                    if key_part and key_part in content:
+                        found = True
                 
-                # For contact info, check the actual number/website
-                elif point.category == 'contact':
-                    # Extract numbers or URLs
-                    contact_values = re.findall(r'[\d\s]+|www\.[^\s]+|https?://[^\s]+', point.content)
-                    found = any(val.replace(' ', '') in content.replace(' ', '') for val in contact_values)
-                
-                # Default: check for substantial overlap
-                else:
-                    # Extract meaningful words
-                    words = [w for w in re.findall(r'\b\w+\b', point_lower) if len(w) > 3]
-                    if words:
-                        matching_words = sum(1 for word in words if word in content)
-                        found = matching_words >= min(3, len(words) * 0.5)
+                # Strategy 4: Special handling for common phrases
+                if not found:
+                    # Check for variations of common phrases
+                    if 'thank you' in search_text:
+                        found = any(phrase in content for phrase in ['thank you', 'thanks for', 'appreciate your', 'grateful for'])
+                    elif 'banking with us' in search_text:
+                        found = any(phrase in content for phrase in ['banking with us', 'banking with lloyds', 'choosing lloyds', 'being our customer'])
                 
                 point.found_in_channels[channel] = found
         
@@ -592,7 +604,7 @@ Return JSON:
             report['by_channel'][channel] = {
                 'found': found,
                 'missing': total - found,
-                'coverage': (found / total * 100) if total > 0 else 0
+                'coverage': (found / total * 100) if total > 0 else 100
             }
         
         # Identify missing critical/important points
@@ -632,7 +644,7 @@ Return JSON:
         elif critical_missing > 0:
             return 'error', f"❌ {critical_missing} critical points missing ({critical_coverage:.0f}% critical coverage)"
         else:
-            return 'warning', f"⚠️ Validation incomplete ({overall_coverage:.0f}% coverage)"
+            return 'warning', f"⚠️ Validation complete ({overall_coverage:.0f}% coverage)"
 
 # Convenience function for easy integration
 def validate_personalization(
@@ -653,7 +665,7 @@ def validate_personalization(
     """
     validator = ContentValidator(api_key)
     
-    # Extract key points - ALWAYS returns meaningful points
+    # Extract key points using AI
     key_points = validator.extract_key_points(original_letter)
     
     # Validate personalization

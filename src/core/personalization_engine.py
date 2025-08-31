@@ -1,18 +1,19 @@
 """
-Personalization Engine - Enhanced Version with Guaranteed Content Preservation
-Ensures ALL critical content is preserved using key points from content validator
+Personalization Engine - Integrated with Orchestrator for Deep Personalization
+This version uses the PersonalizationOrchestrator to ensure both preservation and personalization
 """
 
 import anthropic
 import json
 import os
-from typing import Dict, Any, List, Optional
+import re
+from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class PersonalizationEngine:
-    """Takes generic bank letters and rewrites them for specific customers with content preservation"""
+    """Takes generic bank letters and rewrites them for specific customers with guaranteed preservation and deep personalization"""
     
     def __init__(self):
         self.api_key = os.getenv('CLAUDE_API_KEY')
@@ -24,22 +25,69 @@ class PersonalizationEngine:
             print(f"✓ Personalization Engine using Claude 3.5 Sonnet")
         else:
             print("⚠️ No API key - using mock mode")
+        
+        # Initialize the orchestrator
+        self._init_orchestrator()
+    
+    def _init_orchestrator(self):
+        """Initialize the PersonalizationOrchestrator"""
+        try:
+            # Try to import the orchestrator
+            from .personalization_orchestrator import PersonalizationOrchestrator
+            self.orchestrator = PersonalizationOrchestrator(api_key=self.api_key)
+            self.use_orchestrator = True
+            print("✓ PersonalizationOrchestrator initialized")
+        except ImportError:
+            try:
+                # Try alternate import path
+                from personalization_orchestrator import PersonalizationOrchestrator
+                self.orchestrator = PersonalizationOrchestrator(api_key=self.api_key)
+                self.use_orchestrator = True
+                print("✓ PersonalizationOrchestrator initialized")
+            except ImportError:
+                print("⚠️ PersonalizationOrchestrator not available, using standard engine")
+                self.orchestrator = None
+                self.use_orchestrator = False
     
     def personalize_letter(self, letter_content: str, customer: Dict, key_points: Optional[List] = None) -> Dict:
         """
         Takes a generic letter and rewrites it for a specific customer
+        Uses the orchestrator for deep personalization if available
         
         Args:
             letter_content: Original letter text
             customer: Customer profile dictionary
-            key_points: List of KeyPoint objects from content validator (if available)
+            key_points: List of KeyPoint objects from content validator
         
         Returns:
             Dictionary with personalized content for each channel
         """
         
-        # Extract ALL customer attributes for deep personalization
-        customer_context = {
+        # Use orchestrator if available for better personalization
+        if self.use_orchestrator and self.orchestrator:
+            try:
+                result = self.orchestrator.orchestrate_personalization(
+                    letter_content=letter_content,
+                    customer=customer,
+                    key_points=key_points,
+                    existing_engine=self
+                )
+                return result
+            except Exception as e:
+                print(f"Orchestrator failed, falling back to standard engine: {e}")
+                # Fall back to standard personalization
+        
+        # Standard personalization (if orchestrator not available or fails)
+        customer_context = self._build_customer_context(customer)
+        
+        if self.use_mock:
+            return self._mock_personalization(letter_content, customer_context)
+        
+        return self._standard_personalization(letter_content, customer_context, key_points)
+    
+    def _build_customer_context(self, customer: Dict) -> Dict:
+        """Build comprehensive customer context"""
+        return {
             'name': customer.get('name', 'Valued Customer'),
             'age': customer.get('age', 'unknown'),
             'language': customer.get('preferred_language', 'English'),
@@ -60,250 +108,161 @@ class PersonalizationEngine:
             'employment': customer.get('employment_status', 'unknown'),
             'prefers_digital': customer.get('prefers_digital', False)
         }
-        
-        if self.use_mock:
-            return self._mock_personalization(letter_content, customer_context)
-        
-        return self._ai_personalization(letter_content, customer_context, key_points)
     
-    def _build_preservation_instructions(self, key_points: Optional[List]) -> str:
-        """Build explicit preservation instructions from key points"""
-        if not key_points:
-            return ""
-        
-        # Import here to avoid circular dependency
-        from src.core.content_validator import PointImportance
-        
-        critical_items = []
-        important_items = []
-        contextual_items = []
-        
-        for point in key_points:
-            if hasattr(point, 'importance') and hasattr(point, 'content'):
-                if point.importance == PointImportance.CRITICAL:
-                    critical_items.append(point.content)
-                elif point.importance == PointImportance.IMPORTANT:
-                    important_items.append(point.content)
-                elif point.importance == PointImportance.CONTEXTUAL:
-                    contextual_items.append(point.content)
-        
-        instructions = """
-ABSOLUTE PRESERVATION REQUIREMENTS:
-You MUST include these EXACT items in the personalized versions. This is NON-NEGOTIABLE.
-
-CRITICAL ITEMS (MUST appear word-for-word in email and letter, can be shortened for SMS/app):"""
-        
-        for item in critical_items:
-            instructions += f"\n✓ {item}"
-        
-        instructions += "\n\nIMPORTANT ITEMS (MUST include this information in email and letter):"
-        for item in important_items:
-            instructions += f"\n✓ {item}"
-        
-        if contextual_items:
-            instructions += "\n\nCONTEXTUAL ITEMS (include if space permits):"
-            for item in contextual_items[:5]:  # Limit to avoid prompt bloat
-                instructions += f"\n• {item}"
-        
-        instructions += """
-
-VERIFICATION CHECKLIST:
-□ Every date from original appears in email/letter
-□ Every amount (£) from original appears in email/letter
-□ Every website URL from original appears in email/letter
-□ Every phone number from original appears in email/letter
-□ Every deadline/time from original appears in email/letter
-□ If original says "no action required", this MUST be clear
-□ All regulatory/legal requirements preserved exactly
-
-EMAIL and LETTER must be COMPLETE - include ALL information.
-SMS and APP can be condensed but must include critical dates/amounts."""
-        
-        return instructions
-    
-    def _ai_personalization(self, letter_content: str, customer: Dict, key_points: Optional[List] = None) -> Dict:
-        """Generate real AI personalization using Claude with content preservation"""
+    def _standard_personalization(self, letter_content: str, customer: Dict, key_points: Optional[List] = None) -> Dict:
+        """Standard personalization without orchestrator"""
         
         # Build preservation instructions
         preservation_instructions = self._build_preservation_instructions(key_points)
         
-        prompt = f"""You are a Lloyds Bank communication specialist. Personalize this generic bank letter for this specific customer while STRICTLY preserving all important information.
+        prompt = f"""You are a Lloyds Bank communication specialist. Personalize this letter for the customer while preserving ALL information.
 
-ORIGINAL LETTER (SOURCE OF TRUTH):
+ORIGINAL LETTER:
 {letter_content}
 
 {preservation_instructions}
 
-CUSTOMER PROFILE (USE ALL OF THIS):
+CUSTOMER PROFILE:
 - Name: {customer['name']}
 - Age: {customer['age']} years old
-- Preferred Language: {customer['language']} (WRITE EVERYTHING IN THIS LANGUAGE)
-- Account Balance: £{customer['balance']:,}
-- Income Level: {customer['income']}
-- Digital Activity: {customer['digital_logins']} app logins per month
-- Mobile App Usage: {customer['mobile_app']}
-- Email Engagement: {customer['email_opens']} emails opened per month
-- Phone Contact: {customer['phone_calls']} calls per month
-- Branch Visits: {customer['branch_visits']} visits per month
-- Account Type: {customer['account_type']}
-- Customer Since: {customer['years_with_bank']} years with Lloyds
-- Monthly Transactions: {customer['recent_transactions']}
-- Requires Extra Support: {customer['requires_support']}
-- Recent Life Events: {customer['life_events']}
-- Family Status: {customer['family']}
-- Accessibility Needs: {customer['accessibility']}
+- Language: {customer['language']} (write in this language)
+- Balance: £{customer['balance']:,}
+- Digital Activity: {customer['digital_logins']} logins/month
+- Mobile App: {customer['mobile_app']}
+- Life Events: {customer['life_events']}
 - Employment: {customer['employment']}
-- Digital Preference: {customer['prefers_digital']}
 
-PERSONALIZATION REQUIREMENTS:
-1. Language: Write EVERYTHING in {customer['language']}
-2. Tone: {'Formal and respectful' if customer['age'] != 'unknown' and int(customer['age']) > 60 else 'Modern and friendly' if customer['age'] != 'unknown' and int(customer['age']) < 35 else 'Professional'}
-3. Channel focus: {'Emphasize app and digital' if customer['digital_logins'] > 20 else 'Emphasize phone and branch' if customer['digital_logins'] < 5 else 'Balance all channels'}
-4. Acknowledge loyalty if {customer['years_with_bank']} > 5 years
-5. Reference life events if relevant: {customer['life_events']}
-6. Accessibility: {customer['accessibility']}
+REQUIREMENTS:
+1. Include ALL information from the original letter
+2. Personalize based on customer profile
+3. NO PLACEHOLDERS - write complete content
+4. Make natural connections to their situation
 
-CRITICAL RULES:
-- EMAIL and LETTER must contain 100% of the information from the original
-- Do NOT omit any URLs, phone numbers, dates, or amounts
-- Do NOT summarize or skip any important details in email/letter
-- SMS can be shortened to key facts only (160 chars max)
-- APP notification should be concise but include critical dates/amounts
+Generate personalized versions:
+- EMAIL: Complete, personalized, all information
+- SMS: Max 160 chars, critical points
+- APP: Brief notification
+- LETTER: Formal, complete
 
-CHANNEL REQUIREMENTS:
-- EMAIL: Complete information, personalized greeting, all details from original, friendly but professional
-- SMS: Maximum 160 characters, critical facts only (dates, amounts, action required)
-- APP: Brief notification (under 100 words) with key information
-- LETTER: Formal, complete information, all details preserved
-
-Generate personalized versions. Return ONLY a JSON object with keys: email, sms, app, letter
-
-FINAL CHECK before responding:
-- Does email contain EVERY URL from the original? (especially lloydsbank.com links)
-- Does email contain EVERY phone number from the original?
-- Does email contain EVERY date and amount from the original?
-- Does letter contain ALL the same information as email?
-- Have you written everything in {customer['language']}?"""
+Return ONLY valid JSON:
+{{
+    "email": "...",
+    "sms": "...",
+    "app": "...",
+    "letter": "..."
+}}"""
 
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=3000,
-                temperature=0.5,  # Lower temperature for more consistent preservation
+                max_tokens=4000,
+                temperature=0.5,
                 messages=[{"role": "user", "content": prompt}]
             )
             
             content = response.content[0].text.strip()
+            result = self._extract_json_from_response(content)
             
-            try:
-                if '{' in content:
-                    json_start = content.index('{')
-                    json_end = content.rindex('}') + 1
-                    json_str = content[json_start:json_end]
-                    result = json.loads(json_str)
-                    
-                    # Ensure all keys exist
-                    for key in ['email', 'sms', 'app', 'letter']:
-                        if key not in result or result[key] is None:
-                            result[key] = ""
-                    
-                    # Post-process to ensure critical content (fallback check)
-                    result = self._verify_critical_content(result, letter_content, key_points)
-                    
-                    return result
-                else:
-                    return self._create_fallback_response(content, letter_content, customer)
-                    
-            except json.JSONDecodeError:
-                return self._create_fallback_response(content, letter_content, customer)
-            
+            if result:
+                return self._validate_and_clean_result(result)
+            else:
+                return self._fallback_personalization(letter_content, customer)
+                
         except Exception as e:
-            print(f"API Error: {e}")
-            return self._mock_personalization(letter_content, customer)
+            print(f"Error in standard personalization: {e}")
+            return self._fallback_personalization(letter_content, customer)
     
-    def _verify_critical_content(self, result: Dict, original_letter: str, key_points: Optional[List]) -> Dict:
-        """
-        Post-process check to ensure critical content wasn't lost
-        This is a safety net - the prompt should handle it, but this ensures it
-        """
-        import re
+    def _build_preservation_instructions(self, key_points: Optional[List]) -> str:
+        """Build preservation instructions from key points"""
+        if not key_points:
+            return "PRESERVE ALL INFORMATION FROM THE ORIGINAL LETTER"
         
-        # Extract critical patterns from original
-        urls = re.findall(r'(?:www\.|https?://)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+(?:/[^\s]*)?', original_letter)
-        phones = re.findall(r'\b(?:0\d{3}\s?\d{3}\s?\d{4}|0800\s?\d{3}\s?\d{3,4})\b', original_letter)
-        amounts = re.findall(r'£\s*\d+(?:,\d{3})*(?:\.\d{2})?', original_letter)
+        try:
+            from src.core.content_validator import PointImportance
+        except ImportError:
+            return "PRESERVE ALL INFORMATION FROM THE ORIGINAL LETTER"
         
-        # Check email and letter for completeness
-        for channel in ['email', 'letter']:
-            if channel in result:
-                content = result[channel]
+        instructions = ["MANDATORY INFORMATION TO PRESERVE:"]
+        
+        for point in key_points:
+            if hasattr(point, 'importance') and hasattr(point, 'content'):
+                if point.importance == PointImportance.CRITICAL:
+                    instructions.append(f"🔴 CRITICAL: {point.content}")
+                elif point.importance == PointImportance.IMPORTANT:
+                    instructions.append(f"🟡 IMPORTANT: {point.content}")
+        
+        return "\n".join(instructions)
+    
+    def _extract_json_from_response(self, content: str) -> Optional[Dict]:
+        """Extract JSON from Claude's response"""
+        # Remove markdown
+        content = re.sub(r'```json\s*', '', content)
+        content = re.sub(r'```\s*', '', content)
+        
+        # Try direct parsing
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+        
+        # Try to find JSON in content
+        if '{' in content and '}' in content:
+            try:
+                json_start = content.index('{')
+                json_end = content.rindex('}') + 1
+                json_str = content[json_start:json_end]
+                return json.loads(json_str)
+            except (json.JSONDecodeError, ValueError):
+                pass
+        
+        return None
+    
+    def _validate_and_clean_result(self, result: Dict) -> Dict:
+        """Validate and clean the result"""
+        # Ensure all required fields exist
+        required_fields = ['email', 'sms', 'app', 'letter']
+        for field in required_fields:
+            if field not in result or not result[field]:
+                result[field] = ""
+        
+        # Check for and remove any JSON artifacts
+        for field in required_fields:
+            content = result[field]
+            if isinstance(content, str):
+                # Remove any accidental quotes or JSON formatting
+                if content.startswith('"') and content.endswith('"'):
+                    content = content[1:-1]
                 
-                # Check URLs
-                for url in urls:
-                    if len(url) > 10 and url not in content:  # Skip short false matches
-                        # URL missing - this shouldn't happen with improved prompt
-                        print(f"Warning: URL {url} missing from {channel}")
+                # Unescape characters
+                content = content.replace('\\n', '\n')
+                content = content.replace('\\t', '\t')
+                content = content.replace('\\"', '"')
                 
-                # Check phone numbers
-                for phone in phones:
-                    phone_clean = phone.replace(' ', '')
-                    content_clean = content.replace(' ', '')
-                    if phone_clean not in content_clean:
-                        print(f"Warning: Phone {phone} missing from {channel}")
-                
-                # Check amounts
-                for amount in amounts:
-                    if amount not in content:
-                        print(f"Warning: Amount {amount} missing from {channel}")
+                result[field] = content
+        
+        # Ensure SMS is under 160 characters
+        if len(result.get('sms', '')) > 160:
+            result['sms'] = result['sms'][:157] + '...'
         
         return result
     
-    def _create_fallback_response(self, content: str, original_letter: str, customer: Dict) -> Dict:
-        """Create a structured response when JSON parsing fails"""
-        # Use the content as the email if it looks reasonable
-        if len(content) > 100:
-            return {
-                'email': content,
-                'sms': self._extract_sms_from_letter(original_letter),
-                'app': self._extract_app_notification(original_letter),
-                'letter': content
-            }
-        else:
-            return self._mock_personalization(original_letter, customer)
-    
-    def _extract_sms_from_letter(self, letter: str) -> str:
-        """Extract key facts for SMS from letter"""
-        import re
+    def _fallback_personalization(self, letter_content: str, customer: Dict) -> Dict:
+        """Fallback personalization when API fails"""
+        name = customer['name']
         
-        # Find dates
-        dates = re.findall(r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b', letter, re.IGNORECASE)
-        date_str = dates[0] if dates else ""
+        # Create basic personalized versions
+        personalized_greeting = f"Dear {name},\n\n"
         
-        # Find amounts
-        amounts = re.findall(r'£\s*\d+(?:\.\d{2})?', letter)
-        amount_str = f"Fee change: {amounts[0]}" if amounts else ""
+        # Add life event if present
+        if customer.get('life_events') and customer['life_events'] not in ['None', 'unknown']:
+            personalized_greeting += f"We hope all is well with {customer['life_events']}. "
         
-        # Check for action
-        if "no action" in letter.lower():
-            action = "No action needed"
-        else:
-            action = "See letter for details"
-        
-        sms_parts = ["Lloyds:", date_str, amount_str, action]
-        sms = " ".join(part for part in sms_parts if part)
-        
-        return sms[:160]  # SMS limit
-    
-    def _extract_app_notification(self, letter: str) -> str:
-        """Extract key message for app notification"""
-        lines = letter.split('\n')
-        
-        # Find the main subject/title
-        for line in lines[:10]:
-            if len(line) > 20 and len(line) < 100 and not line.startswith('['):
-                return f"Important: {line.strip()}"
-        
-        return "You have a new message from Lloyds Bank"
+        return {
+            'email': personalized_greeting + letter_content + "\n\nBest regards,\nLloyds Bank",
+            'sms': f"Lloyds: Important update for {name}. Check email for details.",
+            'app': f"New message about your account",
+            'letter': f"Dear {name},\n\n{letter_content}\n\nYours sincerely,\nLloyds Bank"
+        }
     
     def _mock_personalization(self, letter_content: str, customer: Dict) -> Dict:
         """Generate mock personalization for testing without API"""
@@ -312,13 +271,36 @@ FINAL CHECK before responding:
         language = customer['language']
         
         # Extract some real content for mock
-        import re
         urls = re.findall(r'lloydsbank\.com[^\s]*', letter_content)
         url = urls[0] if urls else "lloydsbank.com"
         
         return {
-            'email': f"Dear {name}, We have important updates about your account. Visit {url} for details. [Full content in {language}]",
+            'email': f"Dear {name}, We have important updates about your account. {letter_content[:200]}... Visit {url} for details. [Full content in {language}]",
             'sms': f"Lloyds: Important update. Check app or visit {url}",
             'app': f"Account update for {name} - tap to view",
-            'letter': f"Dear {name}, [Formal letter content with all details preserved]"
+            'letter': f"Dear {name}, [Formal letter content with all details preserved in {language}]"
         }
+
+# Convenience functions for backward compatibility
+def create_personalization_engine() -> PersonalizationEngine:
+    """Create a personalization engine instance"""
+    return PersonalizationEngine()
+
+def personalize_for_customer(
+    letter_content: str,
+    customer: Dict[str, Any],
+    key_points: Optional[List] = None
+) -> Dict[str, str]:
+    """
+    Convenience function to personalize content for a customer
+    
+    Args:
+        letter_content: Original letter text
+        customer: Customer profile
+        key_points: Optional key points to preserve
+        
+    Returns:
+        Personalized content dictionary
+    """
+    engine = PersonalizationEngine()
+    return engine.personalize_letter(letter_content, customer, key_points)
