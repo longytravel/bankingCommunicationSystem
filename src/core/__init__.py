@@ -1,21 +1,16 @@
-"""Package initialization."""
+"""Package initialization - Only importing files that exist"""
 
-# Import the new Shared Brain
-from .shared_brain import SharedBrain, SharedContext, CustomerInsights, PersonalizationStrategy, ContentStrategy, PersonalizationLevel
+# Import the NEW Shared Brain
+from .shared_brain import SharedBrain, SharedContext, CustomerInsights, PersonalizationStrategy, PersonalizationLevel
+
+# Import Smart Email Generator
+from .smart_email_generator import SmartEmailGenerator, EmailResult, generate_smart_email
 
 # Import your existing working components
 from .content_validator import ContentValidator, PointImportance, KeyPoint, validate_personalization
 from .document_classifier import AIDocumentClassifier, ClassificationResult, DocumentType, classify_document
 from .rules_engine import RulesEngine, Rule, RuleOperator, RuleAction
 from .personalization_engine import PersonalizationEngine, create_personalization_engine, personalize_for_customer
-
-# Import channel generators
-from .email_channel_generator import EmailChannelGenerator, EmailPersonalizationContext, generate_personalized_email
-from .sms_channel_generator import SMSChannelGenerator, SMSPersonalizationContext, generate_personalized_sms
-
-# Import orchestrators
-from .simple_email_orchestrator import SimpleEmailOrchestrator, personalize_email_simple
-from .simple_sms_orchestrator import SimpleSMSOrchestrator, personalize_sms_simple
 
 # Import advanced personalization (if available)
 try:

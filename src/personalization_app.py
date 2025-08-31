@@ -52,6 +52,9 @@ try:
     from src.core.content_validator import ContentValidator, PointImportance
     print("✅ ContentValidator imported")
     
+    from src.core.document_classifier import AIDocumentClassifier, ClassificationResult
+    print("✅ DocumentClassifier imported")
+    
     CORE_MODULES_AVAILABLE = True
     print("✅ All core modules imported successfully")
     
@@ -106,12 +109,15 @@ except Exception as e:
     
     class PointImportance:
         pass
+    
+    class AIDocumentClassifier:
+        def __init__(self, *args, **kwargs):
+            pass
 
 # Import existing working components
 try:
     from src.core.simple_sms_orchestrator import SimpleSMSOrchestrator
     from src.core.voice_note_generator import VoiceNoteGenerator
-    from src.core.document_classifier import AIDocumentClassifier, ClassificationResult
     ADDITIONAL_MODULES_AVAILABLE = True
     print("✅ Additional modules imported")
 except Exception as e:
@@ -125,13 +131,6 @@ except Exception as e:
     class VoiceNoteGenerator:
         def __init__(self, *args, **kwargs):
             pass
-    
-    class AIDocumentClassifier:
-        def __init__(self, *args, **kwargs):
-            pass
-    
-    class ClassificationResult:
-        pass
 
 # Page config
 st.set_page_config(
@@ -429,6 +428,12 @@ def initialize_other_session_state():
         st.session_state.letter_content = None
     if 'last_letter_hash' not in st.session_state:
         st.session_state.last_letter_hash = None
+    if 'doc_analyzed' not in st.session_state:
+        st.session_state.doc_analyzed = False
+    if 'doc_classification' not in st.session_state:
+        st.session_state.doc_classification = None
+    if 'doc_key_points' not in st.session_state:
+        st.session_state.doc_key_points = None
 
 # Initialize session state
 initialize_session_state()
@@ -490,6 +495,87 @@ with col1:
                 st.session_state.letter_content = letter_content
                 st.session_state.last_letter_hash = current_hash
                 st.session_state.shared_context = None  # Reset analysis
+                st.session_state.doc_analyzed = False  # Reset document analysis
+            
+            # Automatic document analysis on upload
+            if st.session_state.letter_content and not st.session_state.doc_analyzed:
+                with st.spinner("🔍 Analyzing document with AI..."):
+                    # Use the same components SharedBrain uses
+                    classifier = AIDocumentClassifier()
+                    validator = ContentValidator()
+                    
+                    # Classify document
+                    classification = classifier.classify_document(st.session_state.letter_content)
+                    
+                    # Extract key points
+                    key_points = validator.extract_key_points(st.session_state.letter_content)
+                    
+                    # Store in session state
+                    st.session_state.doc_classification = classification
+                    st.session_state.doc_key_points = key_points
+                    st.session_state.doc_analyzed = True
+            
+            # Display Document Analysis
+            with st.expander("📄 Document Intelligence", expanded=True):
+                if st.session_state.doc_classification:
+                    cls = st.session_state.doc_classification
+                    
+                    # Classification metrics
+                    col_a, col_b, col_c, col_d = st.columns(4)
+                    with col_a:
+                        st.metric("Type", cls.primary_classification)
+                    with col_b:
+                        confidence = cls.confidence_score * 100
+                        color = "🟢" if confidence > 80 else "🟡" if confidence > 60 else "🔴"
+                        st.metric("Confidence", f"{confidence:.0f}%")
+                    with col_c:
+                        urgency_color = "🔴" if cls.urgency_level == "HIGH" else "🟡" if cls.urgency_level == "MEDIUM" else "🟢"
+                        st.metric("Urgency", f"{cls.urgency_level}")
+                    with col_d:
+                        st.metric("Action", "✅ Yes" if cls.customer_action_required else "❌ No")
+                    
+                    # AI Reasoning
+                    with st.expander("🤖 AI Analysis", expanded=False):
+                        st.markdown(f"**Reasoning:** {cls.reasoning}")
+                        
+                        if cls.key_indicators:
+                            st.markdown("**Key Evidence Found:**")
+                            for i, indicator in enumerate(cls.key_indicators[:5], 1):
+                                st.write(f"{i}. {indicator}")
+            
+            # Display Critical Information to Preserve
+            with st.expander("🔒 Critical Information to Preserve", expanded=True):
+                if st.session_state.doc_key_points:
+                    # Group points by importance (exactly like old app)
+                    critical = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CRITICAL]
+                    important = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.IMPORTANT]
+                    contextual = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CONTEXTUAL]
+                    
+                    # Display exactly like the old app
+                    if critical:
+                        st.markdown("**🔴 Critical (Must Include):**")
+                        for point in critical[:5]:  # Show up to 5 critical points
+                            st.write(f"• {point.content}")
+                            if point.explanation:
+                                st.caption(f"  ↳ {point.explanation}")
+                    
+                    if important:
+                        st.markdown("**🟡 Important:**")
+                        for point in important[:3]:  # Show up to 3 important points
+                            st.write(f"• {point.content}")
+                            if point.explanation:
+                                st.caption(f"  ↳ {point.explanation}")
+                    
+                    if contextual:
+                        st.markdown("**🔵 Contextual:**")
+                        for point in contextual[:2]:  # Show up to 2 contextual points
+                            st.write(f"• {point.content}")
+                    
+                    # Summary metrics
+                    total_points = len(critical) + len(important) + len(contextual)
+                    st.caption(f"📊 Total: {len(critical)} critical, {len(important)} important, {len(contextual)} contextual points identified")
+                else:
+                    st.info("Analyzing content...")
             
             # Letter preview
             with st.expander("📄 Letter Preview", expanded=False):
@@ -826,6 +912,7 @@ with st.sidebar:
             if ADDITIONAL_MODULES_AVAILABLE:
                 st.session_state.sms_orchestrator = SimpleSMSOrchestrator()
                 st.session_state.voice_generator = VoiceNoteGenerator()
+            st.session_state.doc_analyzed = False
             st.success("All available systems refreshed!")
             st.rerun()
         except Exception as e:
