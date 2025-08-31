@@ -1,10 +1,25 @@
+# Lloyds Banking Communication System - Dependencies
+
+# Core Web Framework
 streamlit==1.28.0
+
+# Data Processing
 pandas==2.0.0
+openpyxl==3.1.2
+
+# AI APIs
 anthropic==0.25.0
 openai==1.12.0
+
+# Environment Management
 python-dotenv==1.0.0
-openpyxl==3.1.2
+
+# UI Components
 streamlit-option-menu==0.3.6
 plotly==5.15.0
+
+# Caching and Performance
 joblib==1.3.0
+
+# Image Processing
 Pillow==10.0.0
