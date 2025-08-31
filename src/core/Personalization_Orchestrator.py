@@ -1,7 +1,7 @@
 """
-Personalization Orchestrator - Advanced Personalization with Guaranteed Preservation
+Personalization Orchestrator - Advanced Personalization with Input Cleaning
 This module orchestrates the balance between information preservation and deep personalization
-Works with PersonalizationEngine to ensure both goals are achieved
+Now includes input cleaning to remove template artifacts before personalization
 """
 
 import anthropic
@@ -11,9 +11,13 @@ import re
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Import the input cleaner
+from .input_cleaner import clean_letter_content
 
 class PersonalizationDepth(Enum):
     """Levels of personalization depth"""
@@ -93,6 +97,21 @@ class PersonalizationOrchestrator:
             Personalized content for all channels
         """
         
+        # STEP 0: Clean input content first - remove all template artifacts
+        print("🧹 Cleaning input content...")
+        cleaned_content, cleaning_report = clean_letter_content(letter_content, customer)
+        
+        # Report cleaning results
+        if cleaning_report['artifacts_removed']:
+            print(f"✓ Removed {len(cleaning_report['artifacts_removed'])} template artifacts")
+            if cleaning_report['quality_score'] < 0.8:
+                print(f"⚠️ Cleaning quality: {cleaning_report['quality_score']:.2f} - may need manual review")
+        else:
+            print("✓ Content was already clean")
+        
+        # Use cleaned content for all processing
+        letter_content = cleaned_content
+        
         # Step 1: Deep customer analysis
         personalization_plan = self._analyze_customer_deeply(customer)
         
@@ -121,6 +140,9 @@ class PersonalizationOrchestrator:
         if not self._has_sufficient_personalization(result, personalization_plan):
             print("Insufficient personalization, enhancing...")
             result = self._enhance_personalization(result, customer, personalization_plan)
+        
+        # Step 6: Add cleaning report to result metadata
+        result['_cleaning_report'] = cleaning_report
         
         return result
     
@@ -605,7 +627,10 @@ REMEMBER: NO PLACEHOLDERS. Write everything out completely."""
         
         requirements = ["MANDATORY INFORMATION TO PRESERVE:"]
         
-        from src.core.content_validator import PointImportance
+        try:
+            from .content_validator import PointImportance
+        except ImportError:
+            return "PRESERVE ALL INFORMATION FROM THE ORIGINAL LETTER"
         
         for point in key_points:
             if hasattr(point, 'importance') and hasattr(point, 'content'):
@@ -712,7 +737,7 @@ NO square brackets, NO "continued", NO "rest of content".
 
 Return a JSON object with complete content:
 {{
-    "email": "COMPLETE email",
+    "email": "COMPLETE email text with ALL information woven with personal context",
     "sms": "{result.get('sms', '')}",
     "app": "{result.get('app', '')}",
     "letter": "COMPLETE letter"

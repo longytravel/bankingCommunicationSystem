@@ -1,6 +1,6 @@
 """
-Personalization Engine - Integrated with Orchestrator for Deep Personalization
-This version uses the PersonalizationOrchestrator to ensure both preservation and personalization
+Personalization Engine - Fixed Import Issue
+This fixes the import path so PersonalizationOrchestrator actually gets used
 """
 
 import anthropic
@@ -30,22 +30,23 @@ class PersonalizationEngine:
         self._init_orchestrator()
     
     def _init_orchestrator(self):
-        """Initialize the PersonalizationOrchestrator"""
+        """Initialize the PersonalizationOrchestrator with FIXED import paths"""
         try:
-            # Try to import the orchestrator
-            from .personalization_orchestrator import PersonalizationOrchestrator
+            # FIXED: Correct import path - file is named "Personalization_Orchestrator.py" with capital P
+            from .Personalization_Orchestrator import PersonalizationOrchestrator
             self.orchestrator = PersonalizationOrchestrator(api_key=self.api_key)
             self.use_orchestrator = True
-            print("✓ PersonalizationOrchestrator initialized")
-        except ImportError:
+            print("✓ PersonalizationOrchestrator initialized successfully")
+        except ImportError as e:
             try:
-                # Try alternate import path
-                from personalization_orchestrator import PersonalizationOrchestrator
+                # FIXED: Try alternate import path with capital P
+                from Personalization_Orchestrator import PersonalizationOrchestrator
                 self.orchestrator = PersonalizationOrchestrator(api_key=self.api_key)
                 self.use_orchestrator = True
-                print("✓ PersonalizationOrchestrator initialized")
-            except ImportError:
-                print("⚠️ PersonalizationOrchestrator not available, using standard engine")
+                print("✓ PersonalizationOrchestrator initialized successfully (alternate path)")
+            except ImportError as e2:
+                print(f"⚠️ PersonalizationOrchestrator not available: {e}, {e2}")
+                print("   Using standard engine instead")
                 self.orchestrator = None
                 self.use_orchestrator = False
     
@@ -66,16 +67,21 @@ class PersonalizationEngine:
         # Use orchestrator if available for better personalization
         if self.use_orchestrator and self.orchestrator:
             try:
+                print(f"🎯 Using PersonalizationOrchestrator for {customer.get('name', 'customer')}")
                 result = self.orchestrator.orchestrate_personalization(
                     letter_content=letter_content,
                     customer=customer,
                     key_points=key_points,
                     existing_engine=self
                 )
+                print("✓ PersonalizationOrchestrator completed successfully")
                 return result
             except Exception as e:
-                print(f"Orchestrator failed, falling back to standard engine: {e}")
+                print(f"❌ PersonalizationOrchestrator failed: {e}")
+                print("   Falling back to standard personalization")
                 # Fall back to standard personalization
+        else:
+            print("⚠️ Using standard personalization (orchestrator not available)")
         
         # Standard personalization (if orchestrator not available or fails)
         customer_context = self._build_customer_context(customer)

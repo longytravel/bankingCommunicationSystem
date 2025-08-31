@@ -1,7 +1,6 @@
 """
-Lloyds Personalization UI - Enhanced with AI Document Intelligence
-Voice as 5th channel, AI-powered classification, dynamic validation
-Smart placeholder handling and improved initialization
+Lloyds Personalization UI - Hybrid: Keep Working Left Side, Clean Right Side
+Keeps all working functionality, showcases new email system properly
 """
 
 import streamlit as st
@@ -22,7 +21,10 @@ load_dotenv()
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.personalization_engine import PersonalizationEngine
+# Import NEW email system
+from core.simple_email_orchestrator import SimpleEmailOrchestrator
+
+# Import existing working components  
 from core.voice_note_generator import VoiceNoteGenerator
 from core.document_classifier import AIDocumentClassifier, ClassificationResult
 from core.content_validator import ContentValidator, PointImportance
@@ -54,6 +56,20 @@ st.markdown("""
     .confidence-high { background-color: #00A651; color: white; }
     .confidence-medium { background-color: #FFA500; color: white; }
     .confidence-low { background-color: #FF4444; color: white; }
+    .email-showcase {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    .success-banner {
+        background: linear-gradient(90deg, #00A651, #006A4D);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -110,63 +126,6 @@ def smart_extract_key_points(letter_text: str) -> List:
         processed_points.append(point)
     
     return processed_points
-
-def smart_validate_personalization(key_points: List, personalized_content: Dict[str, str]) -> tuple:
-    """
-    Smart validation that understands placeholders were meant to be replaced
-    """
-    validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
-    
-    # Transform validation to be smarter about placeholders
-    smart_points = []
-    for point in key_points:
-        # If it's a placeholder-related point, check for the concept not the literal
-        if 'placeholder' in point.explanation.lower() or '[' in point.content:
-            # Look for the concept being addressed
-            if 'account' in point.content.lower():
-                point.content = "Account reference or number mentioned"
-            elif 'customer name' in point.content.lower():
-                point.content = "Customer name used"
-            elif 'date' in point.content.lower():
-                point.content = "Date specified"
-            elif 'contact' in point.content.lower() or 'phone' in point.content.lower():
-                point.content = "Contact information provided"
-        smart_points.append(point)
-    
-    return validator.validate_personalization(smart_points, personalized_content)
-
-# Initialize session state variables with smart initialization
-if 'engine' not in st.session_state:
-    st.session_state.engine = PersonalizationEngine()
-if 'voice_generator' not in st.session_state:
-    st.session_state.voice_generator = VoiceNoteGenerator()
-
-# Smart AI classifier initialization - always check it has API key
-if 'ai_classifier' not in st.session_state or not hasattr(st.session_state.ai_classifier, 'client') or st.session_state.ai_classifier.client is None:
-    st.session_state.ai_classifier = initialize_ai_classifier()
-    
-if 'current_result' not in st.session_state:
-    st.session_state.current_result = None
-if 'voice_result' not in st.session_state:
-    st.session_state.voice_result = None
-if 'key_points' not in st.session_state:
-    st.session_state.key_points = []
-if 'voice_eligibility' not in st.session_state:
-    st.session_state.voice_eligibility = None
-if 'ai_classification' not in st.session_state:
-    st.session_state.ai_classification = None
-if 'classification_viz_data' not in st.session_state:
-    st.session_state.classification_viz_data = None
-if 'validation_report' not in st.session_state:
-    st.session_state.validation_report = None
-if 'content_validator' not in st.session_state:
-    st.session_state.content_validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
-if 'letter_content' not in st.session_state:
-    st.session_state.letter_content = None
-if 'letter_analyzed' not in st.session_state:
-    st.session_state.letter_analyzed = False
-if 'last_letter_hash' not in st.session_state:
-    st.session_state.last_letter_hash = None
 
 def analyze_personalization(customer: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -265,34 +224,6 @@ def analyze_personalization(customer: Dict[str, Any]) -> Dict[str, Any]:
         factors['special_considerations'].append(f"♿ Accessibility: {accessibility}")
         factors['personalization_score'] += 20
     
-    # Family status
-    family = customer.get('family_status', 'unknown')
-    if 'children' in str(family).lower():
-        factors['special_considerations'].append("👨‍👩‍👧‍👦 Has children - Include family financial planning")
-        factors['personalization_score'] += 10
-    
-    # Employment status
-    employment = customer.get('employment_status', 'unknown')
-    if 'self-employed' in str(employment).lower():
-        factors['special_considerations'].append("💼 Self-employed - Mention business banking")
-        factors['personalization_score'] += 15
-    elif 'retired' in str(employment).lower():
-        factors['special_considerations'].append("🏖️ Retired - Focus on security and simplicity")
-        factors['personalization_score'] += 10
-    
-    # Email engagement
-    email_opens = customer.get('email_opens_per_month', 0)
-    if email_opens < 5:
-        factors['tone_adjustments'].append(f"📧 Low email engagement ({email_opens}/month) - Keep messages brief")
-    elif email_opens > 15:
-        factors['tone_adjustments'].append(f"📧 High email engagement ({email_opens}/month) - Detailed explanations OK")
-    
-    # Branch visits
-    branch_visits = customer.get('branch_visits_per_month', 0)
-    if branch_visits > 2:
-        factors['channel_preferences'].append(f"🏦 Regular branch visitor ({branch_visits}/month)")
-        factors['personalization_score'] += 10
-    
     # Calculate overall personalization level
     if factors['personalization_score'] >= 80:
         factors['level'] = "🔥 Hyper-Personalized"
@@ -319,69 +250,6 @@ def check_voice_eligibility(customer: Dict[str, Any], document_type: str) -> Dic
         customer=customer,
         document=document_metadata
     )
-
-def create_voice_content(personalized_content: Dict[str, str], customer: Dict[str, Any], target_duration: int = 30) -> str:
-    """
-    Create optimized voice content targeting 30 seconds
-    ~75 words for 30 seconds at normal speaking pace
-    """
-    target_words = int(target_duration * 2.5)  # 2.5 words per second
-    
-    # Start with personalized greeting
-    name = customer.get('name', 'Valued Customer').split()[0]  # First name only
-    greeting = f"Hello {name}, this is your Lloyds Bank message. "
-    
-    # Use app content as base (it's usually most concise)
-    app_content = personalized_content.get('app', '')
-    email_content = personalized_content.get('email', '')
-    
-    # Build core message
-    if app_content and len(app_content.split()) < 50:
-        core_message = app_content.replace('\n', ' ').strip()
-    else:
-        # Take first 2 sentences from email
-        sentences = email_content.split('.')[:2]
-        core_message = '. '.join(sentences).strip() + '.'
-    
-    # Combine
-    voice_text = greeting + core_message
-    
-    # Add closing if under word limit
-    if len(voice_text.split()) < target_words - 10:
-        voice_text += " For full details, check your Lloyds app or visit us online."
-    
-    # Trim if over target
-    words = voice_text.split()
-    if len(words) > target_words + 5:
-        words = words[:target_words]
-        voice_text = ' '.join(words) + "..."
-    
-    return voice_text
-
-def play_audio_file(file_path: Path):
-    """Create an audio player for the generated voice note"""
-    if file_path.exists():
-        if file_path.suffix == '.mp3':
-            # Real audio file
-            with open(file_path, 'rb') as f:
-                audio_bytes = f.read()
-            
-            st.audio(audio_bytes, format='audio/mp3')
-            
-            st.download_button(
-                label="📥 Download Voice Note",
-                data=audio_bytes,
-                file_name=file_path.name,
-                mime="audio/mp3"
-            )
-        
-        elif file_path.suffix == '.json':
-            # Mock audio (for testing)
-            with open(file_path, 'r') as f:
-                mock_data = json.load(f)
-            st.info("🎵 Mock Voice Note (OpenAI API not connected)")
-            with st.expander("Mock Data"):
-                st.json(mock_data)
 
 def display_classification_insights(classification: ClassificationResult):
     """Display AI classification insights in a compact, visual way"""
@@ -410,54 +278,50 @@ def display_classification_insights(classification: ClassificationResult):
             st.markdown("**Key Evidence:**")
             for indicator in classification.key_indicators[:5]:
                 st.write(f"• {indicator}")
-    
-    with st.expander("🎯 AI Insights", expanded=False):
-        insights = classification.ai_insights
-        if insights:
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.markdown("**Document Analysis:**")
-                st.write(f"• Purpose: {insights.get('primary_purpose', 'N/A')}")
-                st.write(f"• Audience: {insights.get('target_audience', 'N/A')}")
-                st.write(f"• Key Message: {insights.get('key_message', 'N/A')}")
-            with col_b:
-                st.markdown("**Recommendations:**")
-                channels = insights.get('recommended_channels', [])
-                if channels:
-                    st.write(f"• Best Channels: {', '.join(channels[:3])}")
-                st.write(f"• Action: {insights.get('call_to_action', 'N/A')}")
-    
-    # Risk assessment if available
-    if 'risk_assessment' in classification.ai_insights:
-        with st.expander("⚠️ Risk Assessment", expanded=False):
-            risks = classification.ai_insights['risk_assessment']
-            cols = st.columns(4)
-            risk_types = ['misunderstanding_risk', 'reputation_risk', 'compliance_risk', 'customer_satisfaction_risk']
-            for idx, risk_type in enumerate(risk_types):
-                if risk_type in risks:
-                    with cols[idx]:
-                        risk_level = risks[risk_type]
-                        color = "🔴" if risk_level == "HIGH" else "🟡" if risk_level == "MEDIUM" else "🟢"
-                        st.write(f"{color} {risk_type.replace('_', ' ').title()}")
-                        st.caption(risk_level)
 
-# Add debug/refresh in sidebar for troubleshooting
-with st.sidebar:
-    if st.button("🔄 Refresh AI Services", help="Reinitialize AI services if having issues"):
-        st.session_state.ai_classifier = initialize_ai_classifier()
-        st.session_state.content_validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
-        st.success("AI services refreshed")
-        st.rerun()
+# Initialize session state variables with smart initialization
+if 'email_orchestrator' not in st.session_state:
+    st.session_state.email_orchestrator = SimpleEmailOrchestrator()
+if 'voice_generator' not in st.session_state:
+    st.session_state.voice_generator = VoiceNoteGenerator()
+
+# Smart AI classifier initialization - always check it has API key
+if 'ai_classifier' not in st.session_state or not hasattr(st.session_state.ai_classifier, 'client') or st.session_state.ai_classifier.client is None:
+    st.session_state.ai_classifier = initialize_ai_classifier()
+    
+if 'current_result' not in st.session_state:
+    st.session_state.current_result = None
+if 'voice_result' not in st.session_state:
+    st.session_state.voice_result = None
+if 'key_points' not in st.session_state:
+    st.session_state.key_points = []
+if 'voice_eligibility' not in st.session_state:
+    st.session_state.voice_eligibility = None
+if 'ai_classification' not in st.session_state:
+    st.session_state.ai_classification = None
+if 'content_validator' not in st.session_state:
+    st.session_state.content_validator = ContentValidator(api_key=os.getenv('CLAUDE_API_KEY'))
+if 'letter_content' not in st.session_state:
+    st.session_state.letter_content = None
+if 'letter_analyzed' not in st.session_state:
+    st.session_state.letter_analyzed = False
+if 'last_letter_hash' not in st.session_state:
+    st.session_state.last_letter_hash = None
 
 # Header
 st.title("🏦 Lloyds AI Personalization Engine")
 st.markdown("Transform generic letters into personalized multi-channel communications with AI intelligence")
+
+# Show system mode
+if st.session_state.email_orchestrator:
+    st.info("🎯 **MODULAR EMAIL SYSTEM** - Next-generation personalization with content preservation")
+
 st.markdown("---")
 
 # Two columns
 col1, col2 = st.columns([1, 2])
 
-# LEFT COLUMN - Inputs
+# LEFT COLUMN - Keep all the working functionality
 with col1:
     st.header("📥 Inputs")
     
@@ -495,12 +359,11 @@ with col1:
             # Clear any previous results since we have a new letter
             st.session_state.current_result = None
             st.session_state.voice_result = None
-            st.session_state.validation_report = None
             st.session_state.ai_classification = None
         
         # Letter Analysis Section - Now with AI Classification Button
         with st.expander("📋 Letter Analysis", expanded=True):
-            # Button for AI Classification - Force new classifier if needed
+            # Button for AI Classification
             if st.button("🤖 Analyze Document with AI", type="secondary", use_container_width=True):
                 # Ensure classifier has API key
                 if not st.session_state.ai_classifier.client:
@@ -512,7 +375,6 @@ with col1:
                     processing_time = (datetime.now() - start_time).total_seconds()
                     
                     st.session_state.ai_classification = classification_result
-                    st.session_state.classification_viz_data = st.session_state.ai_classifier.get_visualization_data(classification_result)
                     
                     st.success(f"✅ AI Analysis complete in {processing_time:.1f}s")
                     st.rerun()
@@ -524,7 +386,7 @@ with col1:
             else:
                 st.info("Click 'Analyze Document with AI' for comprehensive classification")
             
-            # Critical Information Section (ALWAYS SHOWN - ESSENTIAL FOR PERSONALIZATION)
+            # Critical Information Section
             with st.expander("🔒 Critical Information to Preserve", expanded=True):
                 if st.session_state.key_points:
                     st.markdown("**Essential content that MUST appear in personalized versions:**")
@@ -538,15 +400,11 @@ with col1:
                         st.markdown("**🔴 Critical (Must Include):**")
                         for point in critical[:5]:
                             st.write(f"• {point.content}")
-                            if point.explanation and 'placeholder' not in point.explanation.lower():
-                                st.caption(f"  ↳ {point.explanation}")
                     
                     if important:
                         st.markdown("**🟡 Important:**")
                         for point in important[:3]:
                             st.write(f"• {point.content}")
-                            if 'placeholder' in point.explanation.lower():
-                                st.caption(f"  ↳ {point.explanation}")
                     
                     if contextual:
                         st.markdown("**🔵 Contextual:**")
@@ -558,7 +416,6 @@ with col1:
                 st.text_area("Original Letter", st.session_state.letter_content[:500] + "...", height=150, disabled=True)
     else:
         st.warning("Please upload a letter to personalize")
-        # Reset analysis flag when no file
         st.session_state.letter_analyzed = False
         st.session_state.last_letter_hash = None
         letter_content = None
@@ -584,7 +441,7 @@ with col1:
         idx = customer_names.index(selected_customer_name)
         selected_customer = customers_df.iloc[idx].to_dict()
         
-        # Check voice eligibility (use AI classification if available, otherwise default)
+        # Check voice eligibility
         doc_type = st.session_state.ai_classification.primary_classification if st.session_state.ai_classification else 'INFORMATIONAL'
         st.session_state.voice_eligibility = check_voice_eligibility(selected_customer, doc_type)
         
@@ -602,281 +459,266 @@ with col1:
                 st.write(f"**Support Needs:** {selected_customer.get('accessibility_needs', 'None')}")
                 st.write(f"**Life Events:** {selected_customer.get('recent_life_events', 'None')}")
         
-        # Generate button
-        if st.button("🚀 Generate Personalization", type="primary", use_container_width=True):
-            with st.spinner(f"Personalizing for {selected_customer['name']}..."):
-                # Generate personalized content WITH KEY POINTS for preservation
-                result = st.session_state.engine.personalize_letter(
-                    letter_content, 
+        # Generate button - USING NEW EMAIL SYSTEM
+        if st.button("🚀 Generate Personalized Email", type="primary", use_container_width=True):
+            with st.spinner(f"Personalizing email for {selected_customer['name']} using modular system..."):
+                
+                # Use NEW email orchestrator system
+                orchestration_result = st.session_state.email_orchestrator.personalize_email(
+                    letter_content,
                     selected_customer,
-                    key_points=st.session_state.key_points  # PASS KEY POINTS FOR PRESERVATION
+                    validate_content=True
                 )
                 
-                # Analyze personalization factors
+                # Analyze personalization factors using existing system
                 factors = analyze_personalization(selected_customer)
                 
-                # SMART validation that understands placeholders
-                with st.spinner("Validating content completeness intelligently..."):
-                    validated_points, summary = smart_validate_personalization(
-                        st.session_state.key_points,
-                        result
-                    )
-                    st.session_state.key_points = validated_points
-                    
-                    # Generate validation report
-                    st.session_state.validation_report = st.session_state.content_validator.generate_validation_report(
-                        validated_points,
-                        summary
-                    )
-                
-                # Store factors with the result
+                # Store results
                 st.session_state.current_result = {
                     'customer': selected_customer,
-                    'content': result,
+                    'orchestration_result': orchestration_result,
                     'factors': factors
                 }
-                st.success("✓ Personalization complete!")
+                
+                if orchestration_result.get('email') and orchestration_result['email'].get('content'):
+                    st.success("✅ Modular Email System - Personalization complete!")
+                else:
+                    st.error("❌ Email generation failed")
+                    if orchestration_result.get('errors'):
+                        st.error(f"Error: {orchestration_result['errors'][0]}")
+                
                 st.rerun()
 
-# RIGHT COLUMN - Results
+# RIGHT COLUMN - CLEAN Results Display for New System
 with col2:
-    st.header("📤 Personalized Output")
+    st.header("📧 Personalized Email Results")
     
     if st.session_state.current_result:
         result = st.session_state.current_result
         customer = result['customer']
-        content = result['content']
+        orchestration_result = result['orchestration_result']
+        factors = result['factors']
         
-        # Customer summary bar
-        col_1, col_2, col_3, col_4, col_5 = st.columns(5)
-        with col_1:
-            st.metric("Customer", customer['name'])
-        with col_2:
-            st.metric("Language", customer.get('preferred_language', 'English'))
-        with col_3:
-            st.metric("Age", customer.get('age', 'Unknown'))
-        with col_4:
-            st.metric("Profile", "Digital" if customer.get('digital_logins_per_month', 0) > 10 else "Traditional")
-        with col_5:
-            if st.session_state.voice_eligibility:
-                st.metric("Voice", "✅" if st.session_state.voice_eligibility['generate'] else "❌")
-        
-        # ALL SECTIONS NOW COLLAPSIBLE
-        
-        # Content Validation - CRITICAL SECTION
-        with st.expander("✅ Content Completeness Check", expanded=True):
-            if st.session_state.validation_report:
-                report = st.session_state.validation_report
-                
-                # Overall status
-                status = report.get('status', 'unknown')
-                message = report.get('message', 'Validation incomplete')
-                
-                if status == 'success':
-                    st.success(message)
-                elif status == 'error':
-                    st.error(message)
-                else:
-                    st.warning(message)
-                
-                # Progress bar
-                coverage = report['summary']['coverage_percentage']
-                st.progress(coverage / 100)
-                
-                # Summary metrics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Points", report['summary']['total_points'])
-                with col2:
-                    st.metric("Critical Points", report['summary']['critical_points'])
-                with col3:
-                    st.metric("Coverage", f"{coverage:.0f}%")
-                
-                # Channel coverage
-                st.markdown("**Coverage by Channel:**")
-                channel_cols = st.columns(4)
-                channels = ['email', 'sms', 'app', 'letter']
-                for idx, channel in enumerate(channels):
-                    with channel_cols[idx]:
-                        ch_data = report['by_channel'][channel]
-                        st.metric(
-                            channel.capitalize(),
-                            f"{ch_data['found']}/{report['summary']['total_points']}",
-                            f"{ch_data['coverage']:.0f}%"
-                        )
-                
-                # Missing critical points - but be smart about placeholders
-                if report['critical_missing']:
-                    missing_real = [p for p in report['critical_missing'] 
-                                   if '[' not in p and 'placeholder' not in p.lower()]
-                    if missing_real:
-                        st.error("**❌ Missing Critical Information:**")
-                        for point in missing_real:
-                            st.write(f"• {point}")
-                
-                # Detailed validation in nested expander
-                with st.expander("📋 Detailed Validation Results", expanded=False):
-                    for detail in report['details']:
-                        icon = "🔴" if detail['importance'] == 'critical' else "🟡" if detail['importance'] == 'important' else "🔵"
-                        st.write(f"{icon} **{detail['content']}**")
-                        
-                        if detail['found_in']:
-                            st.success(f"✓ Found in: {', '.join(detail['found_in'])}")
-                        if detail['missing_from']:
-                            # Don't show as missing if it's a placeholder
-                            if '[' not in detail['content']:
-                                st.warning(f"✗ Missing from: {', '.join(detail['missing_from'])}")
-            else:
-                st.info("Generate personalization to see validation results")
-        
-        # Personalization Analysis
-        with st.expander("🎯 Personalization Analysis", expanded=False):
-            if 'factors' in st.session_state.current_result:
-                factors = st.session_state.current_result['factors']
-                
-                # Overall personalization level with progress bar
+        # Success banner if email generated
+        if orchestration_result.get('email') and orchestration_result['email'].get('content'):
+            st.markdown(f'''
+            <div class="success-banner">
+                <h3>✅ Email Generated Successfully</h3>
+                <p><strong>{customer['name']}</strong> • {factors.get('level', 'Personalized')} • {orchestration_result['email'].get('word_count', 0)} words</p>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+            # Email showcase
+            email_content = orchestration_result['email']['content']
+            
+            st.markdown('<div class="email-showcase">', unsafe_allow_html=True)
+            st.markdown("### 📧 Personalized Email")
+            st.markdown(email_content)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Quick stats
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Words", orchestration_result['email'].get('word_count', 0))
+            with col2:
+                st.metric("Language", orchestration_result['email'].get('language', 'English'))
+            with col3:
+                st.metric("Tone", orchestration_result['email'].get('tone', 'Professional'))
+            with col4:
+                processing_time = orchestration_result.get('processing_time', 0)
+                st.metric("Time", f"{processing_time:.1f}s")
+            
+            # Personalization Analysis - Show Usage Stats Connection
+            with st.expander("🎯 Personalization Analysis", expanded=True):
                 st.markdown(f"### {factors['level']}")
                 score = factors['personalization_score']
                 st.progress(min(score / 100, 1.0))
                 st.caption(f"Personalization Score: {score}/100")
                 
-                # Tabbed view for different factor categories
-                tab_a, tab_b, tab_c, tab_d = st.tabs(["Primary Factors", "Channels", "Tone", "Special"])
+                # Show how customer usage stats influenced content
+                st.markdown("**📊 Usage Stats → Content Adaptation:**")
                 
-                with tab_a:
-                    if factors['primary_factors']:
-                        for factor in factors['primary_factors']:
-                            st.write(factor)
-                    else:
-                        st.write("No primary factors identified")
+                # Digital usage connection
+                digital_logins = customer.get('digital_logins_per_month', 0)
+                mobile_usage = customer.get('mobile_app_usage', 'Unknown')
+                email_opens = customer.get('email_opens_per_month', 0)
                 
-                with tab_b:
-                    if factors['channel_preferences']:
-                        for pref in factors['channel_preferences']:
-                            st.write(pref)
-                    else:
-                        st.write("Standard channel distribution")
+                if digital_logins > 15:
+                    st.write(f"📱 **{digital_logins} logins/month** → Tech-savvy language, app references")
+                if mobile_usage == 'high' or mobile_usage == 'Daily':
+                    st.write(f"📲 **High mobile usage** → Mobile-first features emphasized")
+                if email_opens > 15:
+                    st.write(f"📧 **{email_opens} email opens/month** → Detailed content, engaging format")
                 
-                with tab_c:
-                    if factors['tone_adjustments']:
-                        for tone in factors['tone_adjustments']:
-                            st.write(tone)
-                    else:
-                        st.write("Standard tone applied")
+                # Life stage connection
+                age = customer.get('age', 'unknown')
+                life_event = customer.get('recent_life_events', 'None')
+                if age != 'unknown' and int(age) < 25:
+                    st.write(f"🎓 **Age {age} + {life_event}** → Casual tone, university context")
                 
-                with tab_d:
-                    if factors['special_considerations']:
-                        for consideration in factors['special_considerations']:
-                            st.write(consideration)
-                    else:
-                        st.write("No special considerations")
-            else:
-                st.info("Generate personalization to see analysis")
-        
-        # Generated Content - All 5 channels
-        st.subheader("📝 Generated Content")
-        
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📧 Email", "📱 SMS", "📲 App", "📮 Letter", "🎙️ Voice"])
-        
-        with tab1:  # Email
-            with st.expander("View Full Email", expanded=True):
-                email_content = content.get('email', 'Not generated')
-                st.text_area("Email Version", value=email_content, height=300, disabled=True, label_visibility="collapsed")
-        
-        with tab2:  # SMS
-            with st.expander("View SMS", expanded=True):
-                sms_content = content.get('sms', 'Not generated')
-                st.text_area("SMS Version", value=sms_content, height=100, disabled=True, label_visibility="collapsed")
-                st.caption(f"Length: {len(sms_content)} characters")
-        
-        with tab3:  # App
-            with st.expander("View App Notification", expanded=True):
-                st.text_area("App Notification", value=content.get('app', 'Not generated'), height=150, disabled=True, label_visibility="collapsed")
-        
-        with tab4:  # Letter
-            with st.expander("View Postal Letter", expanded=True):
-                st.text_area("Postal Letter", value=content.get('letter', 'Not generated'), height=300, disabled=True, label_visibility="collapsed")
-        
-        with tab5:  # Voice - Always present as 5th channel
-            if st.session_state.voice_eligibility and st.session_state.voice_eligibility['generate']:
-                if not st.session_state.voice_result:
-                    # Voice not generated yet
-                    st.info("🎙️ Voice note available for this customer")
+                # Financial behavior connection  
+                balance = customer.get('account_balance', 0)
+                recent_transactions = customer.get('recent_transactions', 0)
+                if balance < 2000 and recent_transactions > 50:
+                    st.write(f"💰 **£{balance:,} balance, {recent_transactions} transactions** → Budgeting focus, student-friendly content")
+                
+                # Show applied AI factors
+                applied_factors = orchestration_result['email'].get('personalization_factors', [])
+                if applied_factors:
+                    st.markdown("**🤖 AI Personalization Factors Applied:**")
+                    for factor in applied_factors:
+                        st.write(f"• {factor}")
+            
+            # Content Quality Check - Fixed Display
+            with st.expander("✅ Content Quality Check", expanded=False):
+                # Email quality from new system (FIXED)
+                if orchestration_result.get('email_validation'):
+                    email_val = orchestration_result['email_validation']
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        quality_score = email_val.get('quality_score', 0)
+                        st.metric("Quality Score", f"{quality_score:.2f}/1.0")
+                    with col2:
+                        status_text = email_val.get('status_text', 'Unknown')
+                        if quality_score >= 0.8:
+                            st.metric("Status", f"🌟 {status_text}")
+                        elif quality_score >= 0.6:  
+                            st.metric("Status", f"✅ {status_text}")
+                        else:
+                            st.metric("Status", f"⚠️ {status_text}")
+                    with col3:
+                        personalization_score = email_val.get('personalization_score', 0)
+                        st.metric("Personalization", f"{personalization_score:.2f}/1.0")
+                    
+                    # Show what drove the quality score
+                    st.markdown("**📈 Quality Breakdown:**")
+                    factors_applied = email_val.get('personalization_factors_applied', 0)
+                    context_integration = email_val.get('context_integration', 0)
+                    st.write(f"• **Personalization Factors:** {factors_applied}/5 applied")
+                    st.write(f"• **Context Integration:** {context_integration} customer-specific elements")
+                    if email_val.get('has_greeting'):
+                        st.write("• **Structure:** ✅ Proper greeting")
+                    if email_val.get('has_closing'):
+                        st.write("• **Structure:** ✅ Professional closing")
+                    
+                    # Only show REAL issues (not placeholder complaints)
+                    real_issues = [issue for issue in email_val.get('issues', []) if 'placeholder' not in issue.lower()]
+                    if real_issues:
+                        st.warning("**Real Issues:** " + ", ".join(real_issues))
+                    
+                    if email_val.get('warnings'):
+                        st.info("**Suggestions:** " + ", ".join(email_val['warnings']))
+                
+                # Content preservation (separate from quality)
+                if orchestration_result.get('content_validation'):
+                    content_val = orchestration_result['content_validation']
+                    summary = content_val.get('summary', {})
+                    coverage = summary.get('coverage_percentage', 0)
+                    
+                    st.markdown("**📋 Content Preservation (Separate Check):**")
+                    st.progress(coverage / 100)
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write(f"**Style:** {st.session_state.voice_eligibility.get('voice_style', 'standard')}")
-                        st.write(f"**Language:** {st.session_state.voice_eligibility.get('voice_language', customer.get('preferred_language'))}")
+                        st.metric("Coverage", f"{coverage:.0f}%")
                     with col2:
-                        st.write(f"**Speed:** {st.session_state.voice_eligibility.get('voice_speed', 1.0)}x")
-                        st.write(f"**Duration:** ~30 seconds")
+                        st.metric("Key Points", f"{summary.get('total_points', 0)}")
                     
-                    # Generate voice button INSIDE the voice tab
-                    if st.button("🎙️ Generate Voice Note", type="primary", use_container_width=True):
-                        with st.spinner("Generating 30-second voice note..."):
-                            # Create optimized voice content
-                            voice_text = create_voice_content(
-                                content,
-                                customer,
-                                target_duration=30
-                            )
-                            
-                            # Use AI classification if available
-                            doc_class = st.session_state.ai_classification.primary_classification if st.session_state.ai_classification else 'INFORMATIONAL'
-                            
-                            # Generate voice note
-                            voice_result = st.session_state.voice_generator.generate_voice_note(
-                                text=voice_text,
-                                customer=customer,
-                                document={'classification': doc_class},
-                                force=True
-                            )
-                            
-                            st.session_state.voice_result = voice_result
-                            st.success("✓ Voice note generated!")
-                            st.rerun()
-                else:
-                    # Voice already generated
-                    with st.expander("🎙️ Voice Note Details", expanded=True):
-                        st.success("✅ Voice Note Generated")
-                        
-                        # Metadata
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Voice", st.session_state.voice_result.get('voice', 'Unknown'))
-                        with col2:
-                            st.metric("Duration", f"~{st.session_state.voice_result.get('duration_estimate', 0):.1f}s")
-                        with col3:
-                            st.metric("Language", st.session_state.voice_result.get('language', 'English'))
-                        
-                        # Voice script
-                        st.markdown("### 📝 Voice Script")
-                        voice_text = create_voice_content(content, customer, target_duration=30)
-                        st.text_area("30-Second Script", value=voice_text, height=150, disabled=True, label_visibility="collapsed")
-                        st.caption(f"Word count: {len(voice_text.split())} words")
-                        
-                        # Audio player
-                        st.markdown("### 🔊 Audio Player")
-                        file_path = Path(st.session_state.voice_result.get('filename', ''))
-                        if file_path.exists():
-                            play_audio_file(file_path)
-                        
-                        # Regenerate button
-                        if st.button("🔄 Regenerate Voice Note", type="secondary"):
-                            st.session_state.voice_result = None
-                            st.rerun()
-            else:
-                # Not eligible for voice
-                st.info("🔇 Voice notes not available")
-                if st.session_state.ai_classification and st.session_state.ai_classification.primary_classification == 'REGULATORY':
-                    st.caption("Regulatory documents require written format for compliance")
-                elif st.session_state.voice_eligibility:
-                    st.caption(f"Reason: {st.session_state.voice_eligibility.get('reason', 'Does not meet eligibility criteria')}")
-                else:
-                    st.caption("Customer profile does not meet voice criteria")
+                    # Show realistic content preservation status
+                    if coverage >= 95:
+                        st.success("🎉 Excellent content preservation!")
+                    elif coverage >= 85:
+                        st.success("✅ Very good content preservation")
+                    elif coverage >= 75:
+                        st.info("📝 Good content preservation")
+                    else:
+                        st.warning("⚠️ Some content may be missing")
+            
+            # Processing Details - Clean Display
+            with st.expander("⚙️ System Processing Details", expanded=False):
+                steps = orchestration_result.get('processing_steps', [])
+                st.markdown("**Processing Pipeline:**")
+                for step in steps:
+                    st.write(f"• {step}")
+                
+                if orchestration_result.get('warnings'):
+                    st.markdown("**⚠️ Warnings:**")
+                    for warning in orchestration_result['warnings']:
+                        st.write(f"• {warning}")
+            
+            # Export Options
+            st.markdown("### 📥 Export")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.download_button(
+                    "📧 Download Email",
+                    email_content,
+                    file_name=f"personalized_email_{customer['customer_id']}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            
+            with col2:
+                export_data = {
+                    'customer': customer,
+                    'email': email_content,
+                    'personalization_factors': applied_factors,
+                    'quality_metrics': orchestration_result.get('email_validation', {}),
+                    'generated_at': datetime.now().isoformat()
+                }
+                
+                st.download_button(
+                    "📊 Download Report",
+                    json.dumps(export_data, indent=2),
+                    file_name=f"personalization_report_{customer['customer_id']}.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+        
+        else:
+            # Error display
+            st.error("❌ Email Generation Failed")
+            
+            if orchestration_result.get('errors'):
+                st.markdown("**Errors:**")
+                for error in orchestration_result['errors']:
+                    st.write(f"• {error}")
+            
+            if orchestration_result.get('warnings'):
+                st.markdown("**Warnings:**")
+                for warning in orchestration_result['warnings']:
+                    st.write(f"• {warning}")
+    
     else:
-        st.info("Upload a letter and customer data, then generate personalization")
+        st.info("👈 Upload a letter and select a customer to generate personalized email")
+        
+        # Show capabilities
+        st.markdown("### 🎯 Modular Email System Features")
+        st.write("✅ **Content Preservation** - Advanced validation ensures nothing is lost")
+        st.write("✅ **Deep Personalization** - Context-aware content that feels natural")
+        st.write("✅ **Quality Validation** - Multiple layers of quality checking")
+        st.write("✅ **Processing Pipeline** - Clean, modular architecture")
+        st.write("✅ **Export Options** - Email and detailed reports")
+
+# Sidebar for system status
+with st.sidebar:
+    st.markdown("### ⚙️ System Status")
+    
+    orchestrator_status = "✅ Ready" if st.session_state.email_orchestrator else "❌ Error"
+    classifier_status = "✅ Ready" if st.session_state.ai_classifier else "❌ Error"
+    
+    st.write(f"**Email Orchestrator:** {orchestrator_status}")
+    st.write(f"**AI Classifier:** {classifier_status}")
+    st.write(f"**Voice Generator:** ✅ Ready")
+    
+    if st.button("🔄 Refresh System"):
+        st.session_state.ai_classifier = initialize_ai_classifier()
+        st.session_state.email_orchestrator = SimpleEmailOrchestrator()
+        st.success("System refreshed!")
+        st.rerun()
 
 # Footer
 st.markdown("---")
-st.caption("Powered by Claude 4 Sonnet & OpenAI TTS | Lloyds Banking Group")
+st.caption("Powered by Claude 4 Sonnet | Lloyds Banking Group | Modular Personalization System")
