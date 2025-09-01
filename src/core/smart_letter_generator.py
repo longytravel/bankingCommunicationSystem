@@ -297,7 +297,13 @@ Registered in England and Wales no. 2065. Authorised by the Prudential Regulatio
         
         prompt = f"""You are writing a formal, personalized letter for a Lloyds Bank customer. You have complete intelligence about the customer and must create a professional, complete letter.
 
-ORIGINAL LETTER (preserve ALL key information):
+CRITICAL REQUIREMENTS:
+1. Include 100% of the information from the original letter - NOTHING can be omitted
+2. Deeply personalize based on the customer's specific situation
+3. NO PLACEHOLDERS - write complete, real content
+4. Make natural connections between information and customer context
+
+ORIGINAL LETTER (preserve ALL information):
 {original_letter}
 
 CUSTOMER INTELLIGENCE:
@@ -344,7 +350,7 @@ PERSONALIZATION REQUIREMENTS:
 
 Generate the complete formal letter as JSON:
 {{
-    "letter_content": "COMPLETE formal letter starting with date and address block, then salutation, full body with all information preserved, appropriate closing, and signature block",
+    "letter_content": "COMPLETE formal letter body text (DO NOT include letterhead/date/address - just the main content starting with salutation)",
     "personalization_elements": ["list", "of", "specific", "personalizations", "applied"],
     "formality_level": "formal|professional|professional_friendly",
     "tone_achieved": "description of tone used",
@@ -356,36 +362,64 @@ Write in {customer.get('preferred_language', 'English')}. Ensure the letter is c
         return prompt
     
     def _parse_ai_response(self, content: str) -> Optional[Dict[str, Any]]:
-        """Parse the AI response to extract letter data - matching email's robust parsing"""
+        """Parse the AI response to extract letter data with robust handling"""
         
         # Remove markdown formatting if present
         content = content.replace('```json', '').replace('```', '').strip()
         
-        try:
-            # Try direct JSON parsing first
-            parsed = json.loads(content)
-            return parsed  # Return immediately if successful
-        except json.JSONDecodeError:
-            # If direct parsing fails, try to extract JSON from the content
-            if '{' in content and '}' in content:
-                try:
-                    json_start = content.index('{')
-                    json_end = content.rindex('}') + 1
-                    json_str = content[json_start:json_end]
-                    parsed = json.loads(json_str)
-                    return parsed  # Return the parsed JSON
-                except (json.JSONDecodeError, ValueError) as e:
-                    print(f"JSON extraction failed: {e}")
-                    # Try one more time with regex to clean up common issues
-                    try:
-                        # Remove any trailing commas before closing braces/brackets
-                        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-                        parsed = json.loads(json_str)
-                        return parsed
-                    except:
-                        pass
+        # Clean up common issues
+        content = content.replace('\n', ' ')  # Replace newlines with spaces
+        content = content.replace('\r', '')   # Remove carriage returns
+        content = content.replace('\t', ' ')  # Replace tabs with spaces
         
-        # Only return None if all parsing attempts failed
+        # Try direct JSON parsing first
+        try:
+            parsed = json.loads(content)
+            if parsed and isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        
+        # If direct parsing fails, try to extract JSON from the content
+        if '{' in content and '}' in content:
+            try:
+                json_start = content.index('{')
+                json_end = content.rindex('}') + 1
+                json_str = content[json_start:json_end]
+                
+                # Clean the extracted JSON
+                json_str = json_str.replace('\n', ' ')
+                json_str = json_str.replace('\r', '')
+                json_str = json_str.replace('\t', ' ')
+                
+                # Remove any trailing commas before closing braces/brackets
+                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+                
+                parsed = json.loads(json_str)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"JSON extraction failed: {e}")
+        
+        # Final attempt - try to fix common JSON issues
+        try:
+            # Try to extract just the content between first { and last }
+            if '{' in content and '}' in content:
+                start = content.find('{')
+                end = content.rfind('}') + 1
+                potential_json = content[start:end]
+                
+                # Aggressive cleaning
+                potential_json = re.sub(r'[\r\n\t]', ' ', potential_json)  # Remove all control chars
+                potential_json = re.sub(r'\s+', ' ', potential_json)  # Normalize whitespace
+                potential_json = re.sub(r',\s*([}\]])', r'\1', potential_json)  # Remove trailing commas
+                
+                parsed = json.loads(potential_json)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+        except Exception as e:
+            print(f"Final parsing attempt failed: {e}")
+        
         print("⚠️ All parsing attempts failed for letter response")
         return None
     
@@ -400,20 +434,20 @@ Write in {customer.get('preferred_language', 'English')}. Ensure the letter is c
         
         letter_content = letter_data.get('letter_content', '')
         
-        # Add letterhead if not already present
-        if not letter_content.startswith('Lloyds'):
-            customer_name = shared_context.customer_data.get('name', 'Valued Customer')
-            customer_address = shared_context.customer_data.get('address', 'Customer Address')
-            reference_number = f"LBG-{shared_context.customer_data.get('customer_id', 'XXXX')}-{datetime.now().strftime('%Y%m')}"
-            
-            letterhead = self.config['letterhead_template'].format(
-                date=datetime.now().strftime("%d %B %Y"),
-                customer_name=customer_name,
-                customer_address=customer_address,
-                reference_number=reference_number
-            )
-            
-            letter_content = letterhead + "\n\n" + letter_content
+        # Add letterhead
+        customer_name = shared_context.customer_data.get('name', 'Valued Customer')
+        customer_address = shared_context.customer_data.get('address', 'Customer Address')
+        reference_number = f"LBG-{shared_context.customer_data.get('customer_id', 'XXXX')}-{datetime.now().strftime('%Y%m')}"
+        
+        letterhead = self.config['letterhead_template'].format(
+            date=datetime.now().strftime("%d %B %Y"),
+            customer_name=customer_name,
+            customer_address=customer_address,
+            reference_number=reference_number
+        )
+        
+        # Combine letterhead with content
+        letter_content = letterhead + "\n\n" + letter_content
         
         # Add footer
         letter_content += self.config['footer_template']

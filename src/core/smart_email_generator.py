@@ -5,6 +5,7 @@ Uses SharedContext for Consistent, Deeply Personalized Emails
 
 import os
 import json
+import re
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass
@@ -280,24 +281,30 @@ Manage your preferences: lloydsbank.com/preferences
         
         prompt = f"""You are writing a deeply personalized email for a Lloyds Bank customer. You have complete intelligence about the customer and must create an engaging, complete email.
 
-ORIGINAL LETTER (preserve ALL key information):
+CRITICAL REQUIREMENTS:
+1. Include 100% of the information from the original letter - NOTHING can be omitted
+2. Deeply personalize based on the customer's specific situation
+3. NO PLACEHOLDERS - write complete, real content
+4. Make natural connections between information and customer context
+
+ORIGINAL LETTER (preserve ALL information):
 {original_letter}
 
-CUSTOMER INTELLIGENCE:
-- Name: {customer.get('name')}
-- Segment: {insights.segment}
-- Life Stage: {insights.life_stage}
-- Digital Persona: {insights.digital_persona}
-- Financial Profile: {insights.financial_profile}
-- Communication Style: {insights.communication_style}
-- Language: {customer.get('preferred_language', 'English')}
-- Special Factors: {', '.join(insights.special_factors[:3]) if insights.special_factors else 'None'}
+CUSTOMER PROFILE:
+Name: {customer.get('name')}
+Segment: {insights.segment}
+Life Stage: {insights.life_stage}
+Digital Persona: {insights.digital_persona}
+Financial Profile: {insights.financial_profile}
+Communication Style: {insights.communication_style}
+Language: {customer.get('preferred_language', 'English')}
+Special Factors: {', '.join(insights.special_factors[:3]) if insights.special_factors else 'None'}
 
 PERSONALIZATION STRATEGY:
-- Level: {strategy.level.value}
-- Customer Story: {strategy.customer_story}
-- Tone: {greeting_config['tone']}
-- Must Mention: {', '.join(strategy.must_mention[:3]) if strategy.must_mention else 'None'}
+Level: {strategy.level.value}
+Customer Story: {strategy.customer_story}
+Tone: {greeting_config['tone']}
+Must Mention: {', '.join(strategy.must_mention[:3]) if strategy.must_mention else 'None'}
 
 CONTENT TO PRESERVE (ALL of these):
 {chr(10).join(['• ' + item for item in content_to_preserve])}
@@ -324,7 +331,7 @@ TONE ADAPTATIONS:
 Generate the email as JSON:
 {{
     "subject_line": "Personalized subject under {self.config['subject_line']['max_length']} chars",
-    "email_content": "Complete email with greeting, full body preserving all content, and closing",
+    "email_content": "Complete email text with greeting, full body preserving all content, and closing",
     "personalization_elements": ["list", "of", "specific", "personalizations", "applied"],
     "tone_achieved": "description of tone used"
 }}
@@ -334,28 +341,65 @@ Write in {customer.get('preferred_language', 'English')}. Make it feel personall
         return prompt
     
     def _parse_ai_response(self, content: str) -> Optional[Dict[str, Any]]:
-        """Parse the AI response to extract email data"""
+        """Parse the AI response to extract email data with robust handling"""
         
         # Remove markdown formatting if present
         content = content.replace('```json', '').replace('```', '').strip()
         
-        try:
-            # Try direct JSON parsing
-            parsed = json.loads(content)
-            return parsed  # Return immediately if successful
-        except json.JSONDecodeError:
-            # If direct parsing fails, try to extract JSON from the content
-            if '{' in content and '}' in content:
-                try:
-                    json_start = content.index('{')
-                    json_end = content.rindex('}') + 1
-                    json_str = content[json_start:json_end]
-                    parsed = json.loads(json_str)
-                    return parsed  # Return the parsed JSON
-                except (json.JSONDecodeError, ValueError):
-                    pass  # Continue to return None below
+        # Clean up common issues
+        content = content.replace('\n', ' ')  # Replace newlines with spaces
+        content = content.replace('\r', '')   # Remove carriage returns
+        content = content.replace('\t', ' ')  # Replace tabs with spaces
         
-        # Only return None if all parsing attempts failed
+        # Try direct JSON parsing first
+        try:
+            parsed = json.loads(content)
+            if parsed and isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        
+        # If direct parsing fails, try to extract JSON from the content
+        if '{' in content and '}' in content:
+            try:
+                json_start = content.index('{')
+                json_end = content.rindex('}') + 1
+                json_str = content[json_start:json_end]
+                
+                # Clean the extracted JSON
+                json_str = json_str.replace('\n', ' ')
+                json_str = json_str.replace('\r', '')
+                json_str = json_str.replace('\t', ' ')
+                
+                # Remove any trailing commas before closing braces/brackets
+                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+                
+                parsed = json.loads(json_str)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"JSON extraction failed: {e}")
+        
+        # Final attempt - try to fix common JSON issues
+        try:
+            # Try to extract just the content between first { and last }
+            if '{' in content and '}' in content:
+                start = content.find('{')
+                end = content.rfind('}') + 1
+                potential_json = content[start:end]
+                
+                # Aggressive cleaning
+                potential_json = re.sub(r'[\r\n\t]', ' ', potential_json)  # Remove all control chars
+                potential_json = re.sub(r'\s+', ' ', potential_json)  # Normalize whitespace
+                potential_json = re.sub(r',\s*([}\]])', r'\1', potential_json)  # Remove trailing commas
+                
+                parsed = json.loads(potential_json)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+        except Exception as e:
+            print(f"Final parsing attempt failed: {e}")
+        
+        print("⚠️ All parsing attempts failed for email response")
         return None
     
     def _create_email_result(

@@ -1,0 +1,1 @@
+"""Styling and themes for the modular app"""
