@@ -1,7 +1,7 @@
 """
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
-WITH all document intelligence and customer insights restored
+WITH all document intelligence, customer insights, and VOICE support
 """
 
 import streamlit as st
@@ -41,6 +41,15 @@ except Exception as e:
     print(f"❌ Core modules failed: {e}")
     st.error("Core modules not available - check installation")
     st.stop()
+
+# Try to import voice generator (might not exist yet)
+try:
+    from src.core.smart_voice_generator import SmartVoiceGenerator
+    VOICE_AVAILABLE = True
+    print("✅ Voice module loaded")
+except ImportError:
+    VOICE_AVAILABLE = False
+    print("⚠️ Voice module not available")
 
 # Page configuration
 st.set_page_config(
@@ -98,9 +107,9 @@ class PersonalizationApp:
         if 'generators' not in st.session_state:
             st.session_state.generators = {}
         
-        # Initialize state variables
+        # Initialize state variables (including voice)
         state_vars = [
-            'shared_context', 'email_result', 'sms_result', 'letter_result',
+            'shared_context', 'email_result', 'sms_result', 'letter_result', 'voice_result',
             'letter_content', 'last_letter_hash', 'doc_analyzed',
             'doc_classification', 'doc_key_points'
         ]
@@ -112,19 +121,29 @@ class PersonalizationApp:
     def setup_generators(self):
         """Setup all channel generators"""
         if CORE_MODULES_AVAILABLE:
-            st.session_state.generators = {
+            generators = {
                 'email': SmartEmailGenerator(),
                 'sms': SmartSMSGenerator(),
                 'letter': SmartLetterGenerator()
             }
+            
+            # Add voice if available
+            if VOICE_AVAILABLE:
+                generators['voice'] = SmartVoiceGenerator()
+            
+            st.session_state.generators = generators
     
     def display_header(self):
         """Display application header"""
-        st.markdown('''
+        channels = "Email • SMS • Letter"
+        if VOICE_AVAILABLE:
+            channels += " • Voice"
+        
+        st.markdown(f'''
         <div class="shared-brain-banner">
             <h1>🧠 Lloyds AI Personalization Engine</h1>
             <h3>Modular Architecture • Powered by Shared Brain Intelligence</h3>
-            <p>Email • SMS • Letter • Extensible for new channels</p>
+            <p>{channels} • Extensible for new channels</p>
         </div>
         ''', unsafe_allow_html=True)
     
@@ -140,6 +159,10 @@ class PersonalizationApp:
                 'SMS Generator': 'sms' in st.session_state.generators,
                 'Letter Generator': 'letter' in st.session_state.generators
             }
+            
+            # Add voice if available
+            if VOICE_AVAILABLE:
+                modules_status['Voice Generator'] = 'voice' in st.session_state.generators
             
             for module, status in modules_status.items():
                 icon = "✅" if status else "❌"
@@ -254,18 +277,6 @@ class PersonalizationApp:
                     st.markdown("**Action**")
                     st.write("✅ Yes" if cls.customer_action_required else "❌ No")
                 
-                # Classification metrics
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Type", cls.primary_classification)
-                with col2:
-                    confidence = cls.confidence_score * 100
-                    st.metric("Confidence", f"{confidence:.0f}%")
-                with col3:
-                    st.metric("Urgency", cls.urgency_level)
-                with col4:
-                    st.metric("Action", "✅ Yes" if cls.customer_action_required else "❌ No")
-                
                 # AI Reasoning
                 with st.expander("🤖 AI Analysis", expanded=False):
                     st.markdown(f"**Reasoning:** {cls.reasoning}")
@@ -374,7 +385,14 @@ class PersonalizationApp:
                 results = {}
                 
                 for channel_name, generator in st.session_state.generators.items():
-                    if shared_context.channel_decisions['enabled_channels'].get(channel_name, False):
+                    # Check if channel is enabled (voice might not be in decisions yet)
+                    if channel_name == 'voice':
+                        # Default voice to enabled for testing
+                        enabled = shared_context.channel_decisions['enabled_channels'].get('voice', True)
+                    else:
+                        enabled = shared_context.channel_decisions['enabled_channels'].get(channel_name, False)
+                    
+                    if enabled:
                         with st.spinner(f"Generating {channel_name}..."):
                             if channel_name == 'email':
                                 results['email'] = generator.generate_email(shared_context)
@@ -382,6 +400,8 @@ class PersonalizationApp:
                                 results['sms'] = generator.generate_sms(shared_context)
                             elif channel_name == 'letter':
                                 results['letter'] = generator.generate_letter(shared_context)
+                            elif channel_name == 'voice' and VOICE_AVAILABLE:
+                                results['voice'] = generator.generate_voice_note(shared_context)
                 
                 # Store results
                 for channel, result in results.items():
@@ -441,7 +461,10 @@ class PersonalizationApp:
                     )
                     display.create_download_button(result, customer_name)
                 else:
-                    st.info(f"{channel_name.title()} not generated - may be disabled by rules")
+                    if channel_name == 'voice' and not VOICE_AVAILABLE:
+                        st.info("🎙️ Voice module not installed yet")
+                    else:
+                        st.info(f"{channel_name.title()} not generated - may be disabled by rules")
         
         # Analysis tab
         with tabs[-1]:

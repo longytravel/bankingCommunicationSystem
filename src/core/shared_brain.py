@@ -1,6 +1,6 @@
 """
 Shared Brain - Central Intelligence for Multi-Channel Personalization
-UPDATED: Reuses existing document analysis to save API calls and time
+UPDATED: Includes voice channel decisions and reuses existing document analysis
 """
 
 import os
@@ -121,7 +121,7 @@ class SharedContext:
 class SharedBrain:
     """
     The all-powerful AI brain that creates consistent, deeply personalized context
-    UPDATED: Now reuses existing analysis to save API calls
+    UPDATED: Now includes voice channel decisions and reuses existing analysis
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -131,7 +131,7 @@ class SharedBrain:
         
         if self.api_key:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-sonnet-4-20250514"  # Updated model name
+            self.model = "claude-3-5-sonnet-20241022"  # Updated model name
             print("🧠 Shared Brain initialized with Claude AI")
         else:
             print("⚠️ Shared Brain running in simulation mode")
@@ -156,7 +156,7 @@ class SharedBrain:
     ) -> SharedContext:
         """
         THE MAIN METHOD: Analyze everything and create the shared context
-        UPDATED: Reuses existing analysis when available to save API calls
+        UPDATED: Includes voice channel decisions and reuses existing analysis
         """
         
         start_time = datetime.now()
@@ -206,14 +206,100 @@ class SharedBrain:
             letter_content
         )
         
-        # STEP 6: Channel Decisions
-        print("  📺 Making channel decisions...")
-        channel_decisions = self._make_channel_decisions(
-            rules_evaluation, 
-            customer_insights, 
-            document_classification,
-            force_channels
-        )
+        # STEP 6: Channel Decisions WITH VOICE
+        print("  📺 Making channel decisions (including voice)...")
+        
+        # Extract document classification values safely
+        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
+        urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
+        action_required = document_classification.customer_action_required if hasattr(document_classification, 'customer_action_required') else document_classification.get('customer_action_required', False)
+        
+        # Make channel decisions with voice logic
+        channel_decisions = {
+            'enabled_channels': {
+                'email': True,
+                'sms': customer_insights.segment == 'DIGITAL',
+                'letter': customer_insights.segment in ['TRADITIONAL', 'ASSISTED'],
+                'voice': False  # Default to false, will enable based on conditions
+            },
+            'reasons': {
+                'email': 'Default channel for all customers',
+                'sms': 'Quick channel for digital customers' if customer_insights.segment == 'DIGITAL' else 'Not preferred for this segment',
+                'letter': 'Formal channel for traditional customers' if customer_insights.segment in ['TRADITIONAL', 'ASSISTED'] else 'Not needed for digital-first',
+                'voice': 'Not required'  # Default reason
+            }
+        }
+        
+        # VOICE CHANNEL LOGIC - Segment-based decisions
+        if customer_insights.segment == 'DIGITAL':
+            # Digital customers get voice for urgent matters
+            if urgency == 'HIGH' or action_required:
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Urgent/action required - voice follow-up ensures message received'
+            elif doc_type == 'REGULATORY':
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Regulatory message - voice ensures understanding'
+                
+        elif customer_insights.segment == 'ASSISTED':
+            # Assisted customers get voice for personal touch
+            if customer_insights.life_stage in ['retiring', 'retired', 'elderly']:
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Personal touch for retiring/elderly customers'
+            elif urgency in ['HIGH', 'MEDIUM']:
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Important message for assisted customer'
+                
+        elif customer_insights.segment == 'TRADITIONAL':
+            # Traditional customers get voice for vulnerability support
+            if customer_insights.special_factors:
+                factors_str = ' '.join(str(f).lower() for f in customer_insights.special_factors)
+                vulnerability_keywords = ['vulnerable', 'elderly', 'health', 'bereaved', 'disability', 'accessibility']
+                
+                if any(keyword in factors_str for keyword in vulnerability_keywords):
+                    channel_decisions['enabled_channels']['voice'] = True
+                    channel_decisions['reasons']['voice'] = 'Personal support for vulnerable customer circumstances'
+            elif urgency == 'HIGH':
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Urgent message requiring personal touch'
+        
+        # Document type overrides for voice
+        if doc_type == 'URGENT':
+            channel_decisions['enabled_channels']['voice'] = True
+            channel_decisions['enabled_channels']['sms'] = True
+            channel_decisions['reasons']['voice'] = 'Urgent classification requires immediate voice follow-up'
+            channel_decisions['reasons']['sms'] = 'Urgent notification required'
+            
+        if doc_type == 'REGULATORY':
+            channel_decisions['enabled_channels']['letter'] = True
+            if not channel_decisions['enabled_channels']['voice']:  # Only set if not already set
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Regulatory compliance - ensure message understood'
+            channel_decisions['reasons']['letter'] = 'Regulatory requirement for written notice'
+        
+        # Special vulnerability override for voice
+        if action_required and urgency in ['HIGH', 'MEDIUM']:
+            if not channel_decisions['enabled_channels']['voice']:
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Important action required - voice ensures receipt and understanding'
+        
+        # Check for vulnerable customer indicators
+        if customer_insights.special_factors:
+            factors_lower = [str(f).lower() for f in customer_insights.special_factors]
+            vulnerability_keywords = ['vulnerable', 'deceased', 'illness', 'hospital', 'bereaved', 'mental_health', 'disability']
+            
+            if any(keyword in factor for factor in factors_lower for keyword in vulnerability_keywords):
+                channel_decisions['enabled_channels']['voice'] = True
+                channel_decisions['reasons']['voice'] = 'Enhanced support for customer with special circumstances'
+                # Maybe reduce other channels for sensitivity
+                if urgency != 'HIGH':  # Keep SMS for truly urgent
+                    channel_decisions['enabled_channels']['sms'] = False
+                    channel_decisions['reasons']['sms'] = 'Avoided due to sensitive circumstances'
+        
+        # Force channels if requested
+        if force_channels:
+            for channel in force_channels:
+                channel_decisions['enabled_channels'][channel] = True
+                channel_decisions['reasons'][channel] = f"Forced by user request (original: {channel_decisions['reasons'].get(channel, 'N/A')})"
         
         # STEP 7: Calculate confidence and metadata
         processing_time = (datetime.now() - start_time).total_seconds()
@@ -245,7 +331,12 @@ class SharedBrain:
             print(f"   💰 Saved {api_calls_saved} API calls by reusing existing analysis")
         print(f"   Customer Segment: {customer_insights.segment}")
         print(f"   Personalization Level: {personalization_strategy.level.value}")
-        print(f"   Enabled Channels: {list(channel_decisions.get('enabled_channels', {}).keys())}")
+        
+        # Show enabled channels including voice
+        enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
+        print(f"   Enabled Channels: {enabled}")
+        if channel_decisions['enabled_channels'].get('voice'):
+            print(f"   🎙️ Voice enabled: {channel_decisions['reasons']['voice']}")
         
         return shared_context
     
@@ -409,8 +500,8 @@ Create a comprehensive personalization strategy in this JSON format:
     "channel_adaptations": {{
         "email": {{"hints": "how to adapt personalization for email format"}},
         "sms": {{"hints": "how to adapt for SMS constraints"}},
-        "app": {{"hints": "how to adapt for app notification style"}},
-        "voice": {{"hints": "how to adapt for voice note style"}}
+        "letter": {{"hints": "how to adapt for formal letter style"}},
+        "voice": {{"hints": "how to adapt for conversational voice note"}}
     }}
 }}
 
@@ -421,6 +512,7 @@ STRATEGY GUIDELINES:
 - Adapt the strategy for different channel constraints
 - Be actionable - give specific guidance for how to personalize
 - Higher personalization levels for customers with more personal data and engagement
+- Include voice channel adaptation for natural, conversational tone
 
 Create the strategy now:"""
 
@@ -463,6 +555,7 @@ Create the strategy now:"""
     ) -> ContentStrategy:
         """
         Create the content preservation strategy based on document type and key points
+        UPDATED: Includes voice channel requirements
         """
         
         # Separate points by importance
@@ -481,7 +574,7 @@ Create the strategy now:"""
                 "letter": ["critical", "important", "contextual"],
                 "sms": ["critical"],
                 "app": ["critical"],
-                "voice": ["critical", "important"]
+                "voice": ["critical", "important"]  # Voice gets critical and important for urgent
             }
         elif doc_type == "PROMOTIONAL":
             # Promotional: focus on benefits and calls to action
@@ -489,7 +582,8 @@ Create the strategy now:"""
                 "email": ["critical", "important"],
                 "sms": ["critical"],
                 "app": ["critical"],
-                "voice": ["critical", "important"]
+                "letter": ["critical", "important"],
+                "voice": ["critical"]  # Voice just hits key benefits
             }
         else:
             # Informational: balanced approach
@@ -497,7 +591,8 @@ Create the strategy now:"""
                 "email": ["critical", "important"],
                 "sms": ["critical"],
                 "app": ["critical"],
-                "voice": ["important"]
+                "letter": ["critical", "important", "contextual"],
+                "voice": ["critical"]  # Voice focuses on critical only
             }
         
         preservation_instructions = {
@@ -505,7 +600,7 @@ Create the strategy now:"""
             "sms": "Critical points only, abbreviated but clear",
             "app": "Actionable summary with clear next steps",
             "letter": "Complete formal presentation with all details",
-            "voice": "Conversational explanation of key points"
+            "voice": "Conversational explanation of key points with natural speech"
         }
         
         return ContentStrategy(
@@ -555,78 +650,6 @@ Create the strategy now:"""
             'communication': communication_results,
             'personalization': personalization_results,
             'context': context
-        }
-    
-    def _make_channel_decisions(
-        self,
-        rules_evaluation: Dict[str, Any],
-        customer_insights: CustomerInsights,
-        document_classification,
-        force_channels: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        Make final decisions about which channels to enable and why
-        """
-        
-        enabled_channels = {}
-        channel_reasons = {}
-        
-        # If forced channels, enable those
-        if force_channels:
-            for channel in force_channels:
-                enabled_channels[channel] = True
-                channel_reasons[channel] = "Forced by user request"
-            return {
-                'enabled_channels': enabled_channels,
-                'reasons': channel_reasons,
-                'forced': True
-            }
-        
-        # Check rules evaluation results
-        comm_features = rules_evaluation.get('communication', {}).get('features', {})
-        
-        # Email - usually enabled unless specifically disabled
-        email_enabled = comm_features.get('email', True)
-        enabled_channels['email'] = email_enabled
-        channel_reasons['email'] = "Default channel" if email_enabled else "Disabled by rules"
-        
-        # SMS - check rules and customer segment
-        sms_eligible = comm_features.get('sms', False)
-        if customer_insights.segment == 'TRADITIONAL':
-            sms_eligible = False
-            channel_reasons['sms'] = "Traditional customer segment - prefers letter/phone"
-        elif customer_insights.segment == 'ASSISTED':
-            sms_eligible = True
-            channel_reasons['sms'] = "Assisted customer segment - SMS preferred"
-        elif customer_insights.segment == 'DIGITAL':
-            # Digital customers get SMS only for urgent items
-            urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
-            sms_eligible = urgency in ['HIGH', 'MEDIUM']
-            reason = "Digital customer - SMS for urgent only" if sms_eligible else "Digital customer prefers app/email"
-            channel_reasons['sms'] = reason
-        
-        enabled_channels['sms'] = sms_eligible
-        
-        # App notification - for digital customers
-        app_enabled = customer_insights.segment in ['DIGITAL', 'ASSISTED']
-        enabled_channels['app'] = app_enabled
-        channel_reasons['app'] = f"{customer_insights.segment} customer segment" if app_enabled else "Traditional customer - no app usage"
-        
-        # Voice note - check special rules
-        voice_enabled = comm_features.get('voice_note', False)
-        enabled_channels['voice'] = voice_enabled
-        channel_reasons['voice'] = "Enabled by voice rules" if voice_enabled else "Not eligible for voice notes"
-        
-        # Letter - for traditional customers or regulatory documents
-        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
-        letter_enabled = (customer_insights.segment == 'TRADITIONAL' or doc_type == 'REGULATORY')
-        enabled_channels['letter'] = letter_enabled
-        channel_reasons['letter'] = "Traditional customer or regulatory document" if letter_enabled else "Digital delivery preferred"
-        
-        return {
-            'enabled_channels': enabled_channels,
-            'reasons': channel_reasons,
-            'forced': False
         }
     
     def _build_customer_summary(self, customer_data: Dict[str, Any]) -> str:
@@ -773,7 +796,8 @@ Create the strategy now:"""
                 'email': {'hints': 'Full personalization with context'},
                 'sms': {'hints': 'Brief personal touch'},
                 'app': {'hints': 'Action-oriented personalization'},
-                'voice': {'hints': 'Conversational and warm'}
+                'letter': {'hints': 'Formal but understanding tone'},
+                'voice': {'hints': 'Conversational and warm, natural speech'}
             }
         )
     
@@ -791,5 +815,7 @@ Create the strategy now:"""
             'key_personalization_hooks': shared_context.customer_insights.personalization_hooks,
             'must_mention_items': shared_context.personalization_strategy.must_mention,
             'ai_model_used': shared_context.ai_model_used,
-            'api_calls_saved': shared_context.api_calls_saved
+            'api_calls_saved': shared_context.api_calls_saved,
+            'voice_enabled': shared_context.channel_decisions['enabled_channels'].get('voice', False),
+            'voice_reason': shared_context.channel_decisions['reasons'].get('voice', 'N/A')
         }

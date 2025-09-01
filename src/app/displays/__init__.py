@@ -7,12 +7,14 @@ from .base_display import BaseChannelDisplay
 from .letter_display import LetterDisplay
 from .email_display import EmailDisplay
 from .sms_display import SMSDisplay
+from .voice_display import VoiceDisplay
 
 # Registry of all available channel displays
 CHANNEL_DISPLAYS: Dict[str, BaseChannelDisplay] = {
     'email': EmailDisplay(),
     'sms': SMSDisplay(),
     'letter': LetterDisplay(),
+    'voice': VoiceDisplay(),
 }
 
 def get_display_for_channel(channel_name: str) -> Optional[BaseChannelDisplay]:
