@@ -1,6 +1,6 @@
 """
-Lloyds AI Personalization Engine - Complete Fixed Version
-Uses the new SharedBrain + Smart Email Generator architecture with robust error handling
+Lloyds AI Personalization Engine - Complete with SMS Integration
+Uses the new SharedBrain + Smart Email Generator + Smart SMS Generator architecture
 """
 
 import streamlit as st
@@ -33,9 +33,10 @@ CustomerInsights = None
 PersonalizationStrategy = None
 SmartEmailGenerator = None
 EmailResult = None
+SmartSMSGenerator = None
+SMSResult = None
 ContentValidator = None
 PointImportance = None
-SimpleSMSOrchestrator = None
 VoiceNoteGenerator = None
 AIDocumentClassifier = None
 ClassificationResult = None
@@ -48,6 +49,9 @@ try:
     
     from src.core.smart_email_generator import SmartEmailGenerator, EmailResult
     print("✅ SmartEmailGenerator imported")
+    
+    from src.core.smart_sms_generator import SmartSMSGenerator, SMSResult
+    print("✅ SmartSMSGenerator imported")
     
     from src.core.content_validator import ContentValidator, PointImportance
     print("✅ ContentValidator imported")
@@ -99,7 +103,23 @@ except Exception as e:
                 'generation_method': 'error'
             })()
     
+    class SmartSMSGenerator:
+        def __init__(self, *args, **kwargs):
+            pass
+        def generate_sms(self, *args, **kwargs):
+            return type('obj', (object,), {
+                'content': 'Error: Core modules not available',
+                'character_count': 0,
+                'quality_score': 0,
+                'processing_time': 0,
+                'generation_method': 'error'
+            })()
+    
     class EmailResult:
+        def __init__(self):
+            self.content = ''
+    
+    class SMSResult:
         def __init__(self):
             self.content = ''
     
@@ -114,19 +134,13 @@ except Exception as e:
         def __init__(self, *args, **kwargs):
             pass
 
-# Import existing working components
+# Import additional modules
 try:
-    from src.core.simple_sms_orchestrator import SimpleSMSOrchestrator
     from src.core.voice_note_generator import VoiceNoteGenerator
     ADDITIONAL_MODULES_AVAILABLE = True
     print("✅ Additional modules imported")
 except Exception as e:
     print(f"⚠️ Additional modules not available: {e}")
-    
-    # Create dummy classes
-    class SimpleSMSOrchestrator:
-        def __init__(self, *args, **kwargs):
-            pass
     
     class VoiceNoteGenerator:
         def __init__(self, *args, **kwargs):
@@ -173,6 +187,14 @@ st.markdown("""
         margin: 1rem 0;
     }
     
+    .smart-sms-showcase {
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border: 2px solid #4caf50;
+        border-radius: 10px;
+        padding: 2rem;
+        margin: 1rem 0;
+    }
+    
     .personalization-insights {
         background: linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%);
         border: 2px solid #ff9800;
@@ -203,6 +225,16 @@ st.markdown("""
         padding: 1rem;
         border-radius: 8px;
         margin-bottom: 1rem;
+    }
+    
+    .sms-preview {
+        background: #f0f0f0;
+        border: 2px solid #333;
+        border-radius: 20px;
+        padding: 20px;
+        max-width: 350px;
+        margin: 20px auto;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -357,10 +389,10 @@ def display_smart_email_result(email_result, shared_context):
             st.metric("Words", word_count)
         with col3:
             generation_method = safe_get_attribute(email_result, 'generation_method', 'unknown').replace('_', ' ').title()
-            st.metric("Generation Method", generation_method)
+            st.metric("Generation", generation_method)
         with col4:
             processing_time = safe_get_attribute(email_result, 'processing_time', 0)
-            st.metric("Processing Time", f"{processing_time:.2f}s")
+            st.metric("Time", f"{processing_time:.2f}s")
         
         # Subject line
         subject_line = safe_get_attribute(email_result, 'subject_line', 'No subject')
@@ -384,6 +416,76 @@ def display_smart_email_result(email_result, shared_context):
     except Exception as e:
         st.error(f"Error displaying email result: {e}")
 
+def display_smart_sms_result(sms_result, shared_context):
+    """Display the Smart SMS Generator result"""
+    
+    if not sms_result:
+        st.error("❌ No SMS result available")
+        return
+    
+    try:
+        st.markdown('<div class="smart-sms-showcase">', unsafe_allow_html=True)
+        st.markdown("### 📱 Smart SMS Result")
+        
+        # SMS metadata
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            quality_score = safe_get_attribute(sms_result, 'quality_score', 0)
+            st.metric("Quality Score", f"{quality_score:.1%}")
+        with col2:
+            char_count = safe_get_attribute(sms_result, 'character_count', 0)
+            st.metric("Characters", f"{char_count}/400")
+        with col3:
+            segments = safe_get_attribute(sms_result, 'segments', 1)
+            st.metric("Segments", segments)
+        with col4:
+            processing_time = safe_get_attribute(sms_result, 'processing_time', 0)
+            st.metric("Time", f"{processing_time:.2f}s")
+        
+        # SMS content in phone-like preview
+        content = safe_get_attribute(sms_result, 'content', 'No content available')
+        st.markdown("**📱 SMS Preview:**")
+        st.markdown(f'''
+        <div class="sms-preview">
+            <div style="background: white; border-radius: 15px; padding: 12px; margin-bottom: 10px;">
+                {content}
+            </div>
+            <div style="text-align: center; color: #666; font-size: 12px;">
+                {char_count} characters • {segments} segment(s)
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # Show details
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            critical_points = safe_get_attribute(sms_result, 'critical_points_included', [])
+            if critical_points:
+                st.markdown("**✅ Critical Points Included:**")
+                for point in critical_points:
+                    st.write(f"• {point}")
+        
+        with col2:
+            abbreviations = safe_get_attribute(sms_result, 'abbreviations_used', {})
+            if abbreviations:
+                st.markdown("**📝 Abbreviations Used:**")
+                for full, abbrev in abbreviations.items():
+                    st.write(f"• {full} → {abbrev}")
+        
+        # Personalization elements
+        personalization_elements = safe_get_attribute(sms_result, 'personalization_elements', [])
+        if personalization_elements:
+            with st.expander("🎯 SMS Personalization Applied", expanded=False):
+                for element in personalization_elements:
+                    st.write(f"• {element}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.error(f"Error displaying SMS result: {e}")
+
 # Initialize session state with error handling
 def initialize_session_state():
     """Initialize session state with proper error handling"""
@@ -402,11 +504,12 @@ def initialize_session_state():
             else:
                 st.session_state.smart_email_generator = None
                 
-        if 'sms_orchestrator' not in st.session_state:
-            if ADDITIONAL_MODULES_AVAILABLE:
-                st.session_state.sms_orchestrator = SimpleSMSOrchestrator()
+        if 'smart_sms_generator' not in st.session_state:
+            if CORE_MODULES_AVAILABLE:
+                st.session_state.smart_sms_generator = SmartSMSGenerator()
+                print("✅ SmartSMSGenerator initialized in session state")
             else:
-                st.session_state.sms_orchestrator = None
+                st.session_state.smart_sms_generator = None
                 
         if 'voice_generator' not in st.session_state:
             if ADDITIONAL_MODULES_AVAILABLE:
@@ -424,6 +527,8 @@ def initialize_other_session_state():
         st.session_state.shared_context = None
     if 'email_result' not in st.session_state:
         st.session_state.email_result = None
+    if 'sms_result' not in st.session_state:
+        st.session_state.sms_result = None
     if 'letter_content' not in st.session_state:
         st.session_state.letter_content = None
     if 'last_letter_hash' not in st.session_state:
@@ -445,7 +550,7 @@ if CORE_MODULES_AVAILABLE:
     <div class="shared-brain-banner">
         <h1>🧠 Lloyds AI Personalization Engine</h1>
         <h3>Powered by Shared Brain Intelligence + Smart Channel Generators</h3>
-        <p>Consistent, deeply personalized communications across all channels</p>
+        <p>Consistent, deeply personalized communications across Email & SMS</p>
     </div>
     ''', unsafe_allow_html=True)
 else:
@@ -467,7 +572,8 @@ with col1:
     if not CORE_MODULES_AVAILABLE:
         st.error("❌ Core modules not available. Check:")
         st.error("- src/core/shared_brain.py exists")
-        st.error("- src/core/smart_email_generator.py exists") 
+        st.error("- src/core/smart_email_generator.py exists")
+        st.error("- src/core/smart_sms_generator.py exists") 
         st.error("- Import errors in terminal")
         st.stop()
     
@@ -526,10 +632,8 @@ with col1:
                         st.metric("Type", cls.primary_classification)
                     with col_b:
                         confidence = cls.confidence_score * 100
-                        color = "🟢" if confidence > 80 else "🟡" if confidence > 60 else "🔴"
                         st.metric("Confidence", f"{confidence:.0f}%")
                     with col_c:
-                        urgency_color = "🔴" if cls.urgency_level == "HIGH" else "🟡" if cls.urgency_level == "MEDIUM" else "🟢"
                         st.metric("Urgency", f"{cls.urgency_level}")
                     with col_d:
                         st.metric("Action", "✅ Yes" if cls.customer_action_required else "❌ No")
@@ -546,29 +650,28 @@ with col1:
             # Display Critical Information to Preserve
             with st.expander("🔒 Critical Information to Preserve", expanded=True):
                 if st.session_state.doc_key_points:
-                    # Group points by importance (exactly like old app)
+                    # Group points by importance
                     critical = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CRITICAL]
                     important = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.IMPORTANT]
                     contextual = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CONTEXTUAL]
                     
-                    # Display exactly like the old app
                     if critical:
                         st.markdown("**🔴 Critical (Must Include):**")
-                        for point in critical[:5]:  # Show up to 5 critical points
+                        for point in critical[:5]:
                             st.write(f"• {point.content}")
                             if point.explanation:
                                 st.caption(f"  ↳ {point.explanation}")
                     
                     if important:
                         st.markdown("**🟡 Important:**")
-                        for point in important[:3]:  # Show up to 3 important points
+                        for point in important[:3]:
                             st.write(f"• {point.content}")
                             if point.explanation:
                                 st.caption(f"  ↳ {point.explanation}")
                     
                     if contextual:
                         st.markdown("**🔵 Contextual:**")
-                        for point in contextual[:2]:  # Show up to 2 contextual points
+                        for point in contextual[:2]:
                             st.write(f"• {point.content}")
                     
                     # Summary metrics
@@ -638,12 +741,12 @@ with col1:
                         try:
                             with st.spinner(f"🧠 Shared Brain analyzing {selected_customer['name']}..."):
                                 
-                                # Run the complete Shared Brain analysis - PASS EXISTING ANALYSIS TO SAVE API CALLS
+                                # Run the complete Shared Brain analysis
                                 shared_context = st.session_state.shared_brain.analyze_everything(
                                     letter_content=st.session_state.letter_content,
                                     customer_data=selected_customer,
-                                    existing_classification=st.session_state.doc_classification,  # Reuse existing classification
-                                    existing_key_points=st.session_state.doc_key_points         # Reuse existing key points
+                                    existing_classification=st.session_state.doc_classification,
+                                    existing_key_points=st.session_state.doc_key_points
                                 )
                                 
                                 # Store the shared context
@@ -656,6 +759,14 @@ with col1:
                                         st.session_state.email_result = email_result
                                 else:
                                     st.session_state.email_result = None
+                                
+                                # Generate smart SMS using the shared context
+                                if st.session_state.smart_sms_generator:
+                                    with st.spinner("📱 Generating smart SMS..."):
+                                        sms_result = st.session_state.smart_sms_generator.generate_sms(shared_context)
+                                        st.session_state.sms_result = sms_result
+                                else:
+                                    st.session_state.sms_result = None
                                 
                                 processing_time = safe_get_attribute(shared_context, 'processing_time', 0)
                                 st.success(f"✅ Complete AI analysis finished in {processing_time:.1f}s!")
@@ -673,31 +784,37 @@ with col1:
 with col2:
     st.header("🎯 AI Intelligence & Results")
     
-    if st.session_state.shared_context and st.session_state.email_result:
+    if st.session_state.shared_context and (st.session_state.email_result or st.session_state.sms_result):
         
         shared_context = st.session_state.shared_context
         email_result = st.session_state.email_result
+        sms_result = st.session_state.sms_result
         customer_name = safe_get_attribute(shared_context, 'customer_data.name', 'Customer')
         
         # Success banner
         segment = safe_get_attribute(shared_context, 'customer_insights.segment', 'UNKNOWN')
         level = safe_get_attribute(shared_context, 'personalization_strategy.level.value', 'basic').upper()
-        quality = safe_get_attribute(email_result, 'quality_score', 0)
+        
+        # Calculate average quality
+        email_quality = safe_get_attribute(email_result, 'quality_score', 0) if email_result else 0
+        sms_quality = safe_get_attribute(sms_result, 'quality_score', 0) if sms_result else 0
+        channels_generated = sum([1 for x in [email_result, sms_result] if x])
+        avg_quality = (email_quality + sms_quality) / channels_generated if channels_generated > 0 else 0
         
         st.markdown(f'''
         <div class="success-banner">
             <h3>✅ AI Analysis Complete</h3>
             <p><strong>{customer_name}</strong> • Segment: {segment} • 
             Personalization: {level} • 
-            Quality: {quality:.0%}</p>
+            Avg Quality: {avg_quality:.0%}</p>
         </div>
         ''', unsafe_allow_html=True)
         
         # Tabbed results interface
-        tab1, tab2, tab3, tab4 = st.tabs(["🧠 Intelligence", "📧 Smart Email", "📊 Analysis", "⚙️ System"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧠 Intelligence", "📧 Email", "📱 SMS", "📊 Analysis", "⚙️ System"])
         
         with tab1:
-            # INTELLIGENCE TAB - Show the brain's analysis
+            # INTELLIGENCE TAB
             display_shared_brain_intelligence(shared_context)
             
             # Channel decisions
@@ -714,53 +831,111 @@ with col2:
                     st.error(f"Error displaying channel decisions: {e}")
         
         with tab2:
-            # SMART EMAIL TAB - Show the generated email
-            display_smart_email_result(email_result, shared_context)
-            
-            # Email validation
-            try:
-                if st.session_state.smart_email_generator and hasattr(st.session_state.smart_email_generator, 'validate_email'):
-                    validation = st.session_state.smart_email_generator.validate_email(email_result, shared_context)
-                    
-                    with st.expander("📋 Email Validation", expanded=False):
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.write("**✅ Achievements:**")
-                            for achievement in validation.get('achievements', []):
-                                st.write(f"• {achievement}")
-                        
-                        with col2:
-                            st.write("**⚠️ Issues:**")
-                            issues = validation.get('issues', [])
-                            if issues:
-                                for issue in issues:
-                                    st.write(f"• {issue}")
-                            else:
-                                st.write("• No issues detected")
-            except Exception as e:
-                st.error(f"Validation error: {e}")
-            
-            # Download email
-            if safe_get_attribute(email_result, 'content', ''):
+            # EMAIL TAB
+            if email_result:
+                display_smart_email_result(email_result, shared_context)
+                
+                # Email validation
                 try:
-                    subject_line = safe_get_attribute(email_result, 'subject_line', 'Email')
-                    content = safe_get_attribute(email_result, 'content', '')
-                    email_download_content = f"Subject: {subject_line}\n\n{content}"
-                    customer_filename = customer_name.replace(' ', '_') if customer_name else 'customer'
-                    
-                    st.download_button(
-                        "📧 Download Complete Email",
-                        email_download_content,
-                        file_name=f"smart_email_{customer_filename}.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
+                    if st.session_state.smart_email_generator and hasattr(st.session_state.smart_email_generator, 'validate_email'):
+                        validation = st.session_state.smart_email_generator.validate_email(email_result, shared_context)
+                        
+                        with st.expander("📋 Email Validation", expanded=False):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.write("**✅ Achievements:**")
+                                for achievement in validation.get('achievements', []):
+                                    st.write(f"• {achievement}")
+                            
+                            with col2:
+                                st.write("**⚠️ Issues:**")
+                                issues = validation.get('issues', [])
+                                if issues:
+                                    for issue in issues:
+                                        st.write(f"• {issue}")
+                                else:
+                                    st.write("• No issues detected")
                 except Exception as e:
-                    st.error(f"Download error: {e}")
+                    st.error(f"Validation error: {e}")
+                
+                # Download email
+                if safe_get_attribute(email_result, 'content', ''):
+                    try:
+                        subject_line = safe_get_attribute(email_result, 'subject_line', 'Email')
+                        content = safe_get_attribute(email_result, 'content', '')
+                        email_download_content = f"Subject: {subject_line}\n\n{content}"
+                        customer_filename = customer_name.replace(' ', '_') if customer_name else 'customer'
+                        
+                        st.download_button(
+                            "📧 Download Email",
+                            email_download_content,
+                            file_name=f"email_{customer_filename}.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error(f"Download error: {e}")
+            else:
+                st.info("Email not generated - channel may be disabled")
         
         with tab3:
-            # ANALYSIS TAB - Deep analysis
+            # SMS TAB
+            if sms_result:
+                display_smart_sms_result(sms_result, shared_context)
+                
+                # SMS validation
+                try:
+                    if st.session_state.smart_sms_generator and hasattr(st.session_state.smart_sms_generator, 'validate_sms'):
+                        validation = st.session_state.smart_sms_generator.validate_sms(sms_result, shared_context)
+                        
+                        with st.expander("📋 SMS Validation", expanded=False):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.write("**✅ Achievements:**")
+                                for achievement in validation.get('achievements', []):
+                                    st.write(f"• {achievement}")
+                            
+                            with col2:
+                                st.write("**⚠️ Issues:**")
+                                issues = validation.get('issues', [])
+                                if issues:
+                                    for issue in issues:
+                                        st.write(f"• {issue}")
+                                else:
+                                    st.write("• No issues detected")
+                            
+                            # Show metrics
+                            st.write("**📊 Metrics:**")
+                            metrics = validation.get('metrics', {})
+                            st.write(f"• Characters: {metrics.get('character_count', 0)}/{metrics.get('max_length', 400)}")
+                            st.write(f"• Segments: {metrics.get('segments', 1)}")
+                            st.write(f"• Critical Points: {metrics.get('critical_points', 0)}")
+                            st.write(f"• Personalizations: {metrics.get('personalization', 0)}")
+                except Exception as e:
+                    st.error(f"Validation error: {e}")
+                
+                # Download SMS
+                if safe_get_attribute(sms_result, 'content', ''):
+                    try:
+                        content = safe_get_attribute(sms_result, 'content', '')
+                        customer_filename = customer_name.replace(' ', '_') if customer_name else 'customer'
+                        
+                        st.download_button(
+                            "📱 Download SMS",
+                            content,
+                            file_name=f"sms_{customer_filename}.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error(f"Download error: {e}")
+            else:
+                st.info("SMS not generated - channel may be disabled")
+        
+        with tab4:
+            # ANALYSIS TAB
             try:
                 customer_data = safe_get_attribute(shared_context, 'customer_data', {})
                 analysis = analyze_personalization_deeply(customer_data, shared_context)
@@ -802,8 +977,8 @@ with col2:
             except Exception as e:
                 st.error(f"Analysis tab error: {e}")
         
-        with tab4:
-            # SYSTEM TAB - Technical details
+        with tab5:
+            # SYSTEM TAB
             st.markdown("### ⚙️ System Performance")
             
             try:
@@ -814,24 +989,27 @@ with col2:
                     processing_time = safe_get_attribute(shared_context, 'processing_time', 0)
                     st.metric("Brain Processing", f"{processing_time:.2f}s")
                 with col2:
-                    email_time = safe_get_attribute(email_result, 'processing_time', 0)
+                    email_time = safe_get_attribute(email_result, 'processing_time', 0) if email_result else 0
                     st.metric("Email Generation", f"{email_time:.2f}s")
                 with col3:
-                    confidence = safe_get_attribute(shared_context, 'analysis_confidence', 0)
-                    st.metric("Overall Quality", f"{confidence:.1%}")
+                    sms_time = safe_get_attribute(sms_result, 'processing_time', 0) if sms_result else 0
+                    st.metric("SMS Generation", f"{sms_time:.2f}s")
                 with col4:
-                    model = safe_get_attribute(shared_context, 'ai_model_used', 'unknown')
-                    model_short = model.split('-')[-1] if '-' in model else model
-                    st.metric("AI Model", model_short)
+                    total_time = processing_time + email_time + sms_time
+                    st.metric("Total Time", f"{total_time:.2f}s")
                 
                 # System details
                 with st.expander("🔧 Technical Details", expanded=False):
                     tech_details = {
                         "core_modules_available": CORE_MODULES_AVAILABLE,
                         "additional_modules_available": ADDITIONAL_MODULES_AVAILABLE,
-                        "document_classification": safe_get_attribute(shared_context, 'document_classification', {}),
+                        "channels_processed": {
+                            "email": email_result is not None,
+                            "sms": sms_result is not None
+                        },
                         "processing_time": safe_get_attribute(shared_context, 'processing_time', 0),
-                        "analysis_confidence": safe_get_attribute(shared_context, 'analysis_confidence', 0)
+                        "analysis_confidence": safe_get_attribute(shared_context, 'analysis_confidence', 0),
+                        "api_calls_saved": safe_get_attribute(shared_context, 'api_calls_saved', 0)
                     }
                     st.json(tech_details)
                     
@@ -856,10 +1034,10 @@ with col2:
             
             with col2:
                 st.markdown("**🎯 Smart Generation**")
-                st.write("✅ Personalization Strategy")
+                st.write("✅ Email Personalization")
+                st.write("✅ SMS Optimization")
                 st.write("✅ Channel Decisions")
                 st.write("✅ Quality Validation")
-                st.write("✅ Multi-language Support")
         else:
             st.error("❌ Core modules not available - check your installation")
 
@@ -869,12 +1047,12 @@ with st.sidebar:
     
     brain_status = "✅ Ready" if (st.session_state.shared_brain and CORE_MODULES_AVAILABLE) else "❌ Error"
     email_status = "✅ Ready" if (st.session_state.smart_email_generator and CORE_MODULES_AVAILABLE) else "❌ Error"
-    sms_status = "✅ Ready" if st.session_state.sms_orchestrator else "⚠️ Limited"
+    sms_status = "✅ Ready" if (st.session_state.smart_sms_generator and CORE_MODULES_AVAILABLE) else "❌ Error"
     voice_status = "✅ Ready" if st.session_state.voice_generator else "⚠️ Limited"
     
     st.write(f"**Shared Brain:** {brain_status}")
-    st.write(f"**Smart Email Gen:** {email_status}")
-    st.write(f"**SMS Orchestrator:** {sms_status}")
+    st.write(f"**Email Generator:** {email_status}")
+    st.write(f"**SMS Generator:** {sms_status}")
     st.write(f"**Voice Generator:** {voice_status}")
     
     st.markdown("---")
@@ -911,8 +1089,8 @@ with st.sidebar:
             if CORE_MODULES_AVAILABLE:
                 st.session_state.shared_brain = SharedBrain()
                 st.session_state.smart_email_generator = SmartEmailGenerator()
+                st.session_state.smart_sms_generator = SmartSMSGenerator()
             if ADDITIONAL_MODULES_AVAILABLE:
-                st.session_state.sms_orchestrator = SimpleSMSOrchestrator()
                 st.session_state.voice_generator = VoiceNoteGenerator()
             st.session_state.doc_analyzed = False
             st.success("All available systems refreshed!")
@@ -922,7 +1100,7 @@ with st.sidebar:
 
 # Footer
 st.markdown("---")
-footer_text = "🧠 Powered by Shared Brain Intelligence | Claude 4 Sonnet | Lloyds Banking Group"
+footer_text = "🧠 Powered by Shared Brain Intelligence | Claude 3.5 Sonnet | Lloyds Banking Group"
 if not CORE_MODULES_AVAILABLE:
     footer_text += " | ⚠️ Limited Mode"
 

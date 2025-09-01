@@ -1,10 +1,13 @@
-"""Package initialization - Only importing files that exist"""
+"""Package initialization - Updated with Smart SMS Generator"""
 
 # Import the NEW Shared Brain
 from .shared_brain import SharedBrain, SharedContext, CustomerInsights, PersonalizationStrategy, PersonalizationLevel
 
 # Import Smart Email Generator
 from .smart_email_generator import SmartEmailGenerator, EmailResult, generate_smart_email
+
+# Import Smart SMS Generator (NEW - replacing old orchestrator)
+from .smart_sms_generator import SmartSMSGenerator, SMSResult, generate_smart_sms
 
 # Import your existing working components
 from .content_validator import ContentValidator, PointImportance, KeyPoint, validate_personalization

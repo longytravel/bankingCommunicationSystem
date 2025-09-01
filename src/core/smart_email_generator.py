@@ -1,6 +1,6 @@
 """
-Smart Email Generator - Uses SharedContext for Consistent, Deeply Personalized Emails
-This replaces the old email generators with one that follows the Shared Brain's intelligence
+Smart Email Generator - Self-contained with configuration
+Uses SharedContext for Consistent, Deeply Personalized Emails
 """
 
 import os
@@ -28,7 +28,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import the SharedContext types with absolute import
+# Import the SharedContext types
 try:
     from src.core.shared_brain import SharedContext, PersonalizationLevel
     SHARED_BRAIN_AVAILABLE = True
@@ -52,19 +52,114 @@ class EmailResult:
 
 class SmartEmailGenerator:
     """
-    Smart Email Generator that follows the Shared Brain's intelligence
-    
+    Smart Email Generator - Self-contained with all configuration
     Takes a SharedContext and generates perfectly aligned email content
     """
+    
+    # ============== EMAIL CONFIGURATION ==============
+    # All email-specific configuration in one place (matches SMS structure)
+    EMAIL_CONFIG = {
+        'max_length': 5000,  # Maximum email length in characters
+        'min_length': 200,   # Minimum for a proper email
+        'format': {
+            'default': 'html',
+            'plain_text_option': True
+        },
+        'subject_line': {
+            'max_length': 100,
+            'personalize': True,
+            'include_urgency': True,
+            'templates': {
+                'URGENT': '🔴 Urgent: {topic} - Action Required',
+                'REGULATORY': 'Important Changes to Your {account_type} Account',
+                'PROMOTIONAL': '💰 {name}, Special Offer for You',
+                'INFORMATIONAL': 'Your Lloyds Account Update - {topic}',
+                'DEFAULT': 'Important Information About Your Account'
+            }
+        },
+        'personalization': {
+            'include_full_name': True,
+            'use_preferred_name': True,
+            'reference_history': True,
+            'mention_life_events': True
+        },
+        'greeting_styles': {
+            'DIGITAL': {
+                'style': 'modern_friendly',
+                'greeting': 'Hi {first_name}',
+                'closing': 'Best,\nThe Lloyds Team',
+                'tone': 'conversational'
+            },
+            'ASSISTED': {
+                'style': 'balanced_professional',
+                'greeting': 'Hello {first_name}',
+                'closing': 'Best regards,\nLloyds Bank',
+                'tone': 'friendly_professional'
+            },
+            'TRADITIONAL': {
+                'style': 'formal_respectful',
+                'greeting': 'Dear {title} {last_name}',
+                'closing': 'Yours sincerely,\nLloyds Banking Group',
+                'tone': 'formal'
+            }
+        },
+        'content_structure': {
+            'include_summary': True,  # TL;DR at the top
+            'use_bullet_points': True,
+            'highlight_actions': True,
+            'include_next_steps': True,
+            'add_contact_info': True
+        },
+        'footer_templates': {
+            'standard': """
+---
+Lloyds Bank plc. Registered Office: 25 Gresham Street, London EC2V 7HN.
+Registered in England and Wales no. 2065. Telephone: 0345 300 0000.
+""",
+            'security': """
+🔒 This email is from Lloyds Bank. We'll never ask for your full password or PIN.
+If you're unsure this email is genuine, please call us on 0345 300 0000.
+""",
+            'promotional': """
+You're receiving this because you're a valued Lloyds customer.
+Manage your preferences: lloydsbank.com/preferences
+"""
+        },
+        'quality_thresholds': {
+            'min_personalization': 3,  # Minimum personalization elements
+            'min_content_preservation': 0.9,  # 90% of critical points must be included
+            'readability_score': 60,  # Flesch reading ease target
+            'max_paragraphs': 8,
+            'ideal_paragraph_length': 100  # words
+        },
+        'tone_adaptations': {
+            'urgent': {
+                'emphasize_timeline': True,
+                'use_active_voice': True,
+                'highlight_consequences': True
+            },
+            'promotional': {
+                'emphasize_benefits': True,
+                'use_positive_language': True,
+                'include_testimonials': False
+            },
+            'regulatory': {
+                'use_precise_language': True,
+                'include_references': True,
+                'maintain_formal_tone': True
+            }
+        }
+    }
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the smart email generator"""
         self.api_key = api_key or os.getenv('CLAUDE_API_KEY')
         self.client = None
+        self.config = self.EMAIL_CONFIG  # Use local config
         
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-sonnet-4-20250514"
+            self.model = "claude-3-5-sonnet-20241022"
             print("✅ Smart Email Generator initialized with Claude AI")
         else:
             print("⚠️ Smart Email Generator running in simulation mode")
@@ -105,38 +200,46 @@ class SmartEmailGenerator:
     def _generate_with_ai(self, shared_context: SharedContext) -> EmailResult:
         """Generate email using AI with the shared context intelligence"""
         
-        # Extract all the intelligence from shared context
+        # Extract intelligence from shared context
         customer = shared_context.customer_data
         insights = shared_context.customer_insights
         strategy = shared_context.personalization_strategy
         content_strategy = shared_context.content_strategy
         
-        # Build the comprehensive generation prompt
+        # Get segment-specific configuration
+        segment = insights.segment
+        greeting_config = self.config['greeting_styles'].get(segment, self.config['greeting_styles']['ASSISTED'])
+        
+        # Determine document type for tone
+        doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
+        tone_adaptation = self.config['tone_adaptations'].get(doc_type.lower(), {})
+        
+        # Build the email generation prompt
         generation_prompt = self._build_generation_prompt(
             shared_context.original_letter,
             customer,
             insights,
             strategy,
-            content_strategy
+            content_strategy,
+            greeting_config,
+            tone_adaptation,
+            doc_type
         )
         
         try:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4000,
-                temperature=0.5,  # Balanced creativity with accuracy
+                temperature=0.5,
                 messages=[{"role": "user", "content": generation_prompt}]
             )
             
             content = response.content[0].text.strip()
-            
-            # Parse the AI response
             email_data = self._parse_ai_response(content)
             
             if email_data:
                 return self._create_email_result(email_data, shared_context, "ai_generation")
             else:
-                # Fallback if parsing fails
                 return self._generate_fallback(shared_context)
                 
         except Exception as e:
@@ -149,11 +252,14 @@ class SmartEmailGenerator:
         customer: Dict[str, Any],
         insights,
         strategy,
-        content_strategy
+        content_strategy,
+        greeting_config: Dict[str, Any],
+        tone_adaptation: Dict[str, Any],
+        doc_type: str
     ) -> str:
-        """Build the comprehensive generation prompt using all shared context intelligence"""
+        """Build the email generation prompt using shared context intelligence"""
         
-        # Get email-specific content requirements
+        # Get content requirements for email
         email_requirements = content_strategy.channel_requirements.get('email', ['critical', 'important'])
         
         # Build content to preserve
@@ -163,9 +269,16 @@ class SmartEmailGenerator:
         if 'important' in email_requirements:
             content_to_preserve.extend([p.content for p in content_strategy.important_points])
         if 'contextual' in email_requirements:
-            content_to_preserve.extend([p.content for p in content_strategy.contextual_points])
+            content_to_preserve.extend([p.content for p in content_strategy.contextual_points[:3]])
         
-        prompt = f"""You are writing a deeply personalized email for a Lloyds Bank customer. You have complete intelligence about the customer and exactly how to personalize.
+        # Format greeting with customer name
+        first_name = customer.get('name', '').split()[0] if customer.get('name') else 'Customer'
+        greeting = greeting_config['greeting'].format(first_name=first_name, title='Mr/Ms', last_name=customer.get('name', '').split()[-1] if customer.get('name') else 'Customer')
+        
+        # Build subject line template
+        subject_template = self.config['subject_line']['templates'].get(doc_type, self.config['subject_line']['templates']['DEFAULT'])
+        
+        prompt = f"""You are writing a deeply personalized email for a Lloyds Bank customer. You have complete intelligence about the customer and must create an engaging, complete email.
 
 ORIGINAL LETTER (preserve ALL key information):
 {original_letter}
@@ -178,68 +291,71 @@ CUSTOMER INTELLIGENCE:
 - Financial Profile: {insights.financial_profile}
 - Communication Style: {insights.communication_style}
 - Language: {customer.get('preferred_language', 'English')}
+- Special Factors: {', '.join(insights.special_factors[:3]) if insights.special_factors else 'None'}
 
-PERSONALIZATION STRATEGY (FOLLOW EXACTLY):
-- Level: {strategy.level.value} 
+PERSONALIZATION STRATEGY:
+- Level: {strategy.level.value}
 - Customer Story: {strategy.customer_story}
-- Tone Guidelines: {json.dumps(strategy.tone_guidelines, indent=2)}
+- Tone: {greeting_config['tone']}
+- Must Mention: {', '.join(strategy.must_mention[:3]) if strategy.must_mention else 'None'}
 
-MANDATORY CONTENT TO PRESERVE:
+CONTENT TO PRESERVE (ALL of these):
 {chr(10).join(['• ' + item for item in content_to_preserve])}
 
-PERSONALIZATION REQUIREMENTS (MUST IMPLEMENT):
-Must Mention Items:
-{chr(10).join(['• ' + item for item in strategy.must_mention])}
+EMAIL REQUIREMENTS:
+- Start with: "{greeting},"
+- Tone: {greeting_config['tone']}
+- Style: {greeting_config['style']}
+- End with: "{greeting_config['closing']}"
+- Length: {self.config['min_length']}-{self.config['max_length']} characters
+- Include summary paragraph at the beginning
+- Use clear sections with headers if needed
+- Highlight any actions required
 
-Special Factors to Address:
-{chr(10).join(['• ' + factor for factor in insights.special_factors])}
+PERSONALIZATION REQUIREMENTS:
+- Weave in customer context naturally throughout
+- Reference at least {self.config['quality_thresholds']['min_personalization']} personal elements
+- Make connections between content and customer's situation
+- Use language appropriate for their {insights.segment} segment
 
-Personalization Hooks to Use:
-{chr(10).join(['• ' + hook for hook in insights.personalization_hooks])}
+TONE ADAPTATIONS:
+{json.dumps(tone_adaptation, indent=2) if tone_adaptation else 'Standard professional tone'}
 
-EMAIL ADAPTATION HINTS:
-{strategy.channel_adaptations.get('email', {}).get('hints', 'Full personalization with complete content')}
-
-CRITICAL INSTRUCTIONS:
-1. Write COMPLETE email - no placeholders, no shortcuts
-2. Include ALL required content adapted for email format
-3. Apply ALL personalization requirements naturally throughout
-4. Use the exact tone and communication style specified
-5. Make every sentence feel personal and relevant to this specific customer
-6. Write in {customer.get('preferred_language', 'English')}
-
-Generate the email as a JSON object with this EXACT structure:
+Generate the email as JSON:
 {{
-    "subject_line": "Compelling, personalized subject line",
-    "email_content": "Complete email content with greeting, full personalized body, and professional closing",
+    "subject_line": "Personalized subject under {self.config['subject_line']['max_length']} chars",
+    "email_content": "Complete email with greeting, full body preserving all content, and closing",
     "personalization_elements": ["list", "of", "specific", "personalizations", "applied"],
     "tone_achieved": "description of tone used"
 }}
 
-REMEMBER: This customer is {insights.segment} with {insights.digital_persona} preferences. Every word should reflect their profile and the personalization strategy."""
+Write in {customer.get('preferred_language', 'English')}. Make it feel personally written for this specific customer."""
 
         return prompt
     
     def _parse_ai_response(self, content: str) -> Optional[Dict[str, Any]]:
         """Parse the AI response to extract email data"""
         
-        # Remove markdown formatting
+        # Remove markdown formatting if present
         content = content.replace('```json', '').replace('```', '').strip()
         
         try:
             # Try direct JSON parsing
-            return json.loads(content)
+            parsed = json.loads(content)
+            return parsed  # Return immediately if successful
         except json.JSONDecodeError:
-            # Try to find JSON in the content
+            # If direct parsing fails, try to extract JSON from the content
             if '{' in content and '}' in content:
                 try:
                     json_start = content.index('{')
                     json_end = content.rindex('}') + 1
                     json_str = content[json_start:json_end]
-                    return json.loads(json_str)
-                except json.JSONDecodeError:
-                    pass
+                    parsed = json.loads(json_str)
+                    return parsed  # Return the parsed JSON
+                except (json.JSONDecodeError, ValueError):
+                    pass  # Continue to return None below
         
+        # Only return None if all parsing attempts failed
         return None
     
     def _create_email_result(
@@ -252,13 +368,20 @@ REMEMBER: This customer is {insights.segment} with {insights.digital_persona} pr
         
         email_content = email_data.get('email_content', '')
         subject_line = email_data.get('subject_line', 'Important Update')
-        personalization_elements = email_data.get('personalization_elements', [])
-        tone_achieved = email_data.get('tone_achieved', 'professional')
         
-        # Calculate quality score based on personalization depth
+        # Add appropriate footer based on document type
+        doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
+        if doc_type == 'PROMOTIONAL':
+            email_content += self.config['footer_templates']['promotional']
+        elif doc_type == 'REGULATORY':
+            email_content += self.config['footer_templates']['standard']
+        else:
+            email_content += self.config['footer_templates']['security']
+        
+        # Calculate quality score
         quality_score = self._calculate_quality_score(
             email_content,
-            personalization_elements,
+            email_data.get('personalization_elements', []),
             shared_context
         )
         
@@ -267,11 +390,11 @@ REMEMBER: This customer is {insights.segment} with {insights.digital_persona} pr
             subject_line=subject_line,
             word_count=len(email_content.split()),
             character_count=len(email_content),
-            personalization_elements=personalization_elements,
-            tone_achieved=tone_achieved,
+            personalization_elements=email_data.get('personalization_elements', []),
+            tone_achieved=email_data.get('tone_achieved', 'professional'),
             language=shared_context.customer_data.get('preferred_language', 'English'),
             generation_method=method,
-            processing_time=0.0,  # Will be set by caller
+            processing_time=0.0,
             quality_score=quality_score
         )
     
@@ -281,47 +404,38 @@ REMEMBER: This customer is {insights.segment} with {insights.digital_persona} pr
         personalization_elements: List[str],
         shared_context: SharedContext
     ) -> float:
-        """Calculate quality score based on personalization achievement"""
+        """Calculate quality score based on configuration thresholds"""
         
         score = 0.5  # Base score
         
         # Check personalization depth
-        target_level = shared_context.personalization_strategy.level
-        if target_level == PersonalizationLevel.HYPER and len(personalization_elements) >= 8:
-            score += 0.3
-        elif target_level == PersonalizationLevel.DEEP and len(personalization_elements) >= 6:
-            score += 0.25
-        elif target_level == PersonalizationLevel.MODERATE and len(personalization_elements) >= 4:
+        min_personal = self.config['quality_thresholds']['min_personalization']
+        if len(personalization_elements) >= min_personal:
             score += 0.2
-        elif len(personalization_elements) >= 2:
-            score += 0.15
         
-        # Check must-mention items
+        # Check content length
+        word_count = len(email_content.split())
+        if self.config['min_length'] <= len(email_content) <= self.config['max_length']:
+            score += 0.1
+        
+        # Check for must-mention items
         must_mention_found = 0
         for item in shared_context.personalization_strategy.must_mention:
-            # Check if key concepts from must_mention appear in email
             item_words = item.lower().split()
-            key_words = [w for w in item_words if len(w) > 4]  # Meaningful words
+            key_words = [w for w in item_words if len(w) > 4]
             if key_words and any(word in email_content.lower() for word in key_words):
                 must_mention_found += 1
         
         if must_mention_found > 0:
             score += 0.1 + (must_mention_found * 0.05)
         
-        # Check content preservation
-        critical_content_found = 0
-        for point in shared_context.content_strategy.critical_points:
-            # Simple check if core concepts are present
-            point_words = point.content.lower().split()
-            key_words = [w for w in point_words if len(w) > 4]
-            if key_words and any(word in email_content.lower() for word in key_words):
-                critical_content_found += 1
-        
-        if critical_content_found > 0:
-            score += 0.1 + (critical_content_found * 0.02)
-        
-        # Check length appropriateness
-        if 200 <= len(email_content.split()) <= 1000:  # Good email length
+        # Check personalization level achievement
+        target_level = shared_context.personalization_strategy.level
+        if target_level == PersonalizationLevel.HYPER and len(personalization_elements) >= 8:
+            score += 0.1
+        elif target_level == PersonalizationLevel.DEEP and len(personalization_elements) >= 6:
+            score += 0.1
+        elif target_level == PersonalizationLevel.MODERATE and len(personalization_elements) >= 4:
             score += 0.05
         
         return min(1.0, score)
@@ -334,30 +448,30 @@ REMEMBER: This customer is {insights.segment} with {insights.digital_persona} pr
         strategy = shared_context.personalization_strategy
         
         name = customer.get('name', 'Valued Customer')
+        segment = insights.segment
+        greeting_config = self.config['greeting_styles'].get(segment, self.config['greeting_styles']['ASSISTED'])
+        
+        # Format greeting
+        first_name = name.split()[0] if name != 'Valued Customer' else name
+        greeting = greeting_config['greeting'].format(first_name=first_name, title='', last_name='')
         
         # Build basic personalized email
-        greeting = f"Dear {name},"
-        
-        # Add personalization based on insights
         personal_intro = ""
         if insights.special_factors:
             factor = insights.special_factors[0]
             personal_intro = f"We hope everything is going well with {factor}. "
         elif strategy.customer_story:
-            personal_intro = f"As {strategy.customer_story.lower()}, we wanted to reach out personally. "
+            personal_intro = f"As someone who {strategy.customer_story.lower()}, we wanted to reach out personally. "
         
-        # Core content
-        core_content = shared_context.original_letter
-        
-        # Personal closing
-        if insights.segment == 'DIGITAL':
-            closing = "You can manage everything through your app, or call us if you need support."
-        elif insights.segment == 'TRADITIONAL':
-            closing = "Please call us or visit your local branch if you have any questions."
-        else:
-            closing = "Contact us through your preferred method - app, phone, or in person."
-        
-        email_content = f"{greeting}\n\n{personal_intro}{core_content}\n\n{closing}\n\nBest regards,\nLloyds Bank"
+        email_content = f"""{greeting},
+
+{personal_intro}We have important information about your account that requires your attention.
+
+{shared_context.original_letter}
+
+If you have any questions, please don't hesitate to contact us through your preferred channel.
+
+{greeting_config['closing']}"""
         
         return EmailResult(
             content=email_content,
@@ -365,7 +479,7 @@ REMEMBER: This customer is {insights.segment} with {insights.digital_persona} pr
             word_count=len(email_content.split()),
             character_count=len(email_content),
             personalization_elements=["customer_name", "segment_adaptation", "personal_intro"],
-            tone_achieved=strategy.tone_guidelines.get('overall_tone', 'professional'),
+            tone_achieved=greeting_config['tone'],
             language=customer.get('preferred_language', 'English'),
             generation_method="fallback",
             processing_time=0.0,
@@ -392,7 +506,7 @@ Communication Style: {insights.communication_style}
 This email would be deeply personalized using:
 {chr(10).join(['• ' + hook for hook in insights.personalization_hooks[:3]])}
 
-[Original letter content would be here with full personalization]
+[Original letter content would appear here with full personalization woven throughout]
 
 Best regards,
 Lloyds Bank
@@ -409,7 +523,7 @@ Lloyds Bank
             language=customer.get('preferred_language', 'English'),
             generation_method="simulation",
             processing_time=0.0,
-            quality_score=0.8  # High for simulation
+            quality_score=0.8
         )
     
     def _create_disabled_result(self, shared_context: SharedContext, reason: str) -> EmailResult:
@@ -429,26 +543,35 @@ Lloyds Bank
         )
     
     def validate_email(self, email_result: EmailResult, shared_context: SharedContext) -> Dict[str, Any]:
-        """Validate that the email meets the shared context requirements"""
+        """Validate that the email meets configuration requirements"""
         
         validation = {
             'is_valid': True,
             'quality_score': email_result.quality_score,
             'issues': [],
             'achievements': [],
-            'personalization_depth': len(email_result.personalization_elements),
-            'content_preserved': True,  # Would need deeper analysis
-            'tone_match': True,  # Would need tone analysis
-            'language_correct': email_result.language == shared_context.customer_data.get('preferred_language', 'English')
+            'metrics': {
+                'word_count': email_result.word_count,
+                'character_count': email_result.character_count,
+                'personalization_elements': len(email_result.personalization_elements),
+                'min_personalization_required': self.config['quality_thresholds']['min_personalization']
+            }
         }
         
-        # Check minimum requirements
-        if email_result.word_count < 50:
+        # Check length
+        if email_result.character_count < self.config['min_length']:
             validation['issues'].append("Email too short")
             validation['is_valid'] = False
+        elif email_result.character_count > self.config['max_length']:
+            validation['issues'].append("Email too long")
+            validation['is_valid'] = False
+        else:
+            validation['achievements'].append(f"Optimal length: {email_result.word_count} words")
         
-        if len(email_result.personalization_elements) < 3:
-            validation['issues'].append("Insufficient personalization")
+        # Check personalization
+        min_personal = self.config['quality_thresholds']['min_personalization']
+        if len(email_result.personalization_elements) < min_personal:
+            validation['issues'].append(f"Insufficient personalization (need {min_personal})")
         else:
             validation['achievements'].append(f"Applied {len(email_result.personalization_elements)} personalizations")
         
@@ -456,18 +579,18 @@ Lloyds Bank
         target_level = shared_context.personalization_strategy.level
         achieved_elements = len(email_result.personalization_elements)
         
-        if target_level == PersonalizationLevel.HYPER and achieved_elements < 8:
-            validation['issues'].append("Did not achieve HYPER personalization level")
-        elif target_level == PersonalizationLevel.DEEP and achieved_elements < 6:
-            validation['issues'].append("Did not achieve DEEP personalization level")
-        elif target_level == PersonalizationLevel.MODERATE and achieved_elements < 4:
-            validation['issues'].append("Did not achieve MODERATE personalization level")
+        if target_level == PersonalizationLevel.HYPER and achieved_elements >= 8:
+            validation['achievements'].append(f"Achieved HYPER personalization")
+        elif target_level == PersonalizationLevel.DEEP and achieved_elements >= 6:
+            validation['achievements'].append(f"Achieved DEEP personalization")
+        elif target_level == PersonalizationLevel.MODERATE and achieved_elements >= 4:
+            validation['achievements'].append(f"Achieved MODERATE personalization")
         else:
-            validation['achievements'].append(f"Achieved {target_level.value} personalization")
+            validation['issues'].append(f"Did not achieve {target_level.value} personalization level")
         
         return validation
 
-# Convenience function for easy integration
+# Convenience function
 def generate_smart_email(shared_context: SharedContext, api_key: Optional[str] = None) -> EmailResult:
     """
     Convenience function to generate a smart email from shared context

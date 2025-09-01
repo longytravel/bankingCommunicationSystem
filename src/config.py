@@ -1,19 +1,19 @@
 """
 Lloyds Banking Communication System - Configuration Module
-Manages all application settings, paths, and constants
-Business rules moved to JSON files - only technical config remains
+Manages SHARED application settings, paths, and constants
+Channel-specific configs moved to their respective modules
 """
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 # Load environment variables
 load_dotenv()
 
 class Config:
-    """Main configuration class for the application"""
+    """Main configuration class for SHARED application settings"""
     
     # ============== PATHS ==============
     # Project structure
@@ -94,132 +94,70 @@ class Config:
         'small': '0.875rem'
     }
     
-    # ============== COMMUNICATION CHANNELS ==============
+    # ============== COMMUNICATION CHANNELS (Basic Info Only) ==============
+    # Channel-specific configs are in their respective modules
+    # This just tracks what channels exist and their basic properties
     CHANNELS = {
         'email': {
+            'enabled': True,
+            'module': 'smart_email_generator',
             'cost': 0.01,
-            'max_length': 5000,
-            'format': 'html',
-            'compliance': True,
             'icon': '✉'
         },
         'sms': {
+            'enabled': True,
+            'module': 'smart_sms_generator',
             'cost': 0.05,
-            'max_length': 160,
-            'format': 'plain',
-            'compliance': False,
             'icon': '📱'
         },
         'letter': {
+            'enabled': False,  # Not implemented yet
+            'module': 'smart_letter_generator',
             'cost': 1.20,
-            'max_length': 10000,
-            'format': 'formal',
-            'compliance': True,
             'icon': '📮'
         },
         'app': {
+            'enabled': False,  # Not implemented yet
+            'module': 'smart_app_generator',
             'cost': 0.001,
-            'max_length': 500,
-            'format': 'plain',
-            'compliance': True,
             'icon': '📲'
         },
         'voice': {
+            'enabled': True,
+            'module': 'voice_note_generator',
             'cost': 0.002,
-            'max_length': 4000,
-            'format': 'audio',
-            'compliance': False,
             'icon': '🎙️'
         }
     }
     
     # ============== DOCUMENT CLASSIFICATION ==============
-    DOCUMENT_CATEGORIES = ['REGULATORY', 'PROMOTIONAL', 'INFORMATIONAL']
-    
-    CLASSIFICATION_KEYWORDS = {
-        'REGULATORY': [
-            'terms and conditions', 'regulatory', 'compliance', 'legal requirement',
-            'payment services regulations', 'mandatory', 'required by law'
-        ],
-        'PROMOTIONAL': [
-            'offer', 'save money', 'exclusive', 'limited time', 'special rate',
-            'earn rewards', 'bonus', 'discount'
-        ],
-        'INFORMATIONAL': [
-            'update', 'information', 'notice', 'announcement', 'new feature',
-            'helpful', 'tips', 'guide', 'support'
-        ]
-    }
+    DOCUMENT_CATEGORIES = ['REGULATORY', 'PROMOTIONAL', 'INFORMATIONAL', 'URGENT', 'TRANSACTIONAL']
     
     # ============== CUSTOMER SEGMENTS ==============
-    # NOTE: Segment definitions are now in data/rules/personalization_rules.json
     CUSTOMER_SEGMENTS = {
-        'DIGITAL': {
-            'description': 'Self-service, app-first customers',
-            'channel_preference': ['app', 'email', 'voice'],
-            'tone': 'modern'
-        },
-        'ASSISTED': {
-            'description': 'Hybrid digital/human support',
-            'channel_preference': ['email', 'sms', 'app'],
-            'tone': 'friendly'
-        },
-        'TRADITIONAL': {
-            'description': 'Branch and postal preference',
-            'channel_preference': ['letter', 'email'],
-            'tone': 'formal'
-        }
+        'DIGITAL': 'Self-service, app-first customers',
+        'ASSISTED': 'Hybrid digital/human support',
+        'TRADITIONAL': 'Branch and postal preference'
     }
     
-    # Vulnerability indicators
-    VULNERABILITY_KEYWORDS = [
-        'elderly', 'disability', 'bereavement', 'health condition',
-        'financial difficulty', 'mental health', 'accessibility'
-    ]
-    
-    # Life events
-    LIFE_EVENTS = [
-        'marriage', 'divorce', 'new baby', 'bereavement',
-        'new job', 'retirement', 'house move', 'graduation'
-    ]
-    
     # ============== LANGUAGE SUPPORT ==============
-    # Claude supports 95+ languages automatically
     # Common languages for reference
     COMMON_LANGUAGES = [
         'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese',
         'Dutch', 'Polish', 'Russian', 'Chinese', 'Japanese', 'Korean',
-        'Arabic', 'Hindi', 'Urdu', 'Bengali', 'Punjabi', 'Turkish',
-        'Vietnamese', 'Thai', 'Indonesian', 'Malay', 'Swahili'
+        'Arabic', 'Hindi', 'Urdu', 'Bengali', 'Punjabi', 'Turkish'
     ]
     
     # RTL (Right-to-Left) languages
     RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Urdu', 'Persian', 'Pashto']
     
     # ============== TECHNICAL VALIDATION ==============
-    # Only technical validations remain here
-    # Business rules moved to data/rules/validation_rules.json
     TECHNICAL_VALIDATION = {
         'max_file_size_mb': 10,
         'allowed_file_types': ['.txt', '.docx', '.pdf', '.csv', '.xlsx'],
         'max_api_retries': 3,
         'api_timeout_seconds': 30,
         'max_concurrent_requests': 10
-    }
-    
-    # ============== MOCK DATA FOR TESTING ==============
-    MOCK_CLASSIFICATION = {
-        'classification': 'REGULATORY',
-        'confidence': 0.95,
-        'reasoning': 'Contains terms and conditions changes'
-    }
-    
-    MOCK_PERSONALIZATION = {
-        'email': 'Dear {name}, We have important updates about your account...',
-        'sms': 'Lloyds: Account update required. Check app for details.',
-        'letter': 'Dear {name}, Following our recent review of your account...',
-        'app': 'You have a new message about your account terms.',
-        'voice': 'Hello {name}, this is an important message from Lloyds Bank.'
     }
     
     # ============== RULES ENGINE CONFIGURATION ==============
@@ -239,6 +177,8 @@ class Config:
             cls.CUSTOMERS_DIR, cls.OUTPUT_DIR, cls.PERSONALIZED_DIR,
             cls.CACHE_DIR, cls.ASSETS_DIR, cls.RULES_DIR,
             cls.OUTPUT_DIR / 'voice_notes',
+            cls.OUTPUT_DIR / 'sms_messages',
+            cls.OUTPUT_DIR / 'emails',
             cls.CACHE_DIR / 'voice_notes'
         ]
         for directory in directories:
@@ -264,13 +204,18 @@ class Config:
         return 0.0
     
     @classmethod
+    def get_enabled_channels(cls) -> List[str]:
+        """Get list of enabled channels"""
+        return [ch for ch, conf in cls.CHANNELS.items() if conf.get('enabled', False)]
+    
+    @classmethod
     def is_rtl_language(cls, language: str) -> bool:
         """Check if a language is right-to-left"""
         return language in cls.RTL_LANGUAGES
     
     @classmethod
     def validate_file_type(cls, filename: str) -> bool:
-        """Check if file type is allowed (technical validation only)"""
+        """Check if file type is allowed"""
         return any(filename.lower().endswith(ext) 
                   for ext in cls.TECHNICAL_VALIDATION['allowed_file_types'])
     
@@ -294,24 +239,6 @@ class Config:
             return None
     
     @classmethod
-    def evaluate_business_rule(cls, rule_type: str, context: Dict[str, Any], tags: list = None) -> Dict[str, Any]:
-        """
-        Evaluate business rules for a given context
-        
-        Args:
-            rule_type: Type of rules to evaluate ('validation', 'personalization', etc.)
-            context: Context dictionary with customer/document data
-            tags: Optional tags to filter rules
-            
-        Returns:
-            Rules evaluation result
-        """
-        engine = cls.load_rules_engine(rule_type)
-        if engine:
-            return engine.evaluate(context, tags=tags)
-        return {'features': {}, 'metadata': {}, 'triggered_rules': []}
-    
-    @classmethod
     def get_css_theme(cls) -> str:
         """Get Lloyds-branded CSS for Streamlit"""
         return f"""
@@ -321,13 +248,11 @@ class Config:
             background-color: {cls.BRAND_COLORS['white']};
         }}
         
-        /* Headers */
         h1, h2, h3 {{
             color: {cls.BRAND_COLORS['dark_grey']};
             font-family: {cls.FONTS['headline']};
         }}
         
-        /* Primary button */
         .stButton > button {{
             background-color: {cls.BRAND_COLORS['primary_green']};
             color: white;
@@ -335,41 +260,18 @@ class Config:
             border-radius: 4px;
             padding: 0.5rem 1rem;
             font-weight: 500;
-            transition: background-color 0.3s;
         }}
         
         .stButton > button:hover {{
             background-color: {cls.BRAND_COLORS['accent_teal']};
         }}
         
-        /* Sidebar */
-        .css-1d391kg {{
-            background-color: {cls.BRAND_COLORS['light_grey']};
-        }}
-        
-        /* Success messages */
         .success {{
             color: {cls.BRAND_COLORS['success_green']};
         }}
         
-        /* Error messages */
         .error {{
             color: {cls.BRAND_COLORS['error_red']};
-        }}
-        
-        /* Info boxes */
-        .stInfo {{
-            background-color: {cls.BRAND_COLORS['light_grey']};
-            border-left: 4px solid {cls.BRAND_COLORS['primary_green']};
-        }}
-        
-        /* Voice note indicators */
-        .voice-eligible {{
-            background-color: {cls.BRAND_COLORS['accent_teal']};
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.875rem;
         }}
         </style>
         """
@@ -393,20 +295,8 @@ class Config:
         return configs.get(api_name, {})
     
     @classmethod
-    def log_event(cls, event_type: str, details: Dict[str, Any]):
-        """Log system events (placeholder for future logging implementation)"""
-        if cls.LOG_API_CALLS and event_type == 'api_call':
-            print(f"API Call: {details}")
-        # Future: Implement proper logging to file/database
-    
-    @classmethod
     def validate_customer_data(cls, customer: Dict[str, Any]) -> tuple[bool, list]:
-        """
-        Validate customer data structure
-        
-        Returns:
-            Tuple of (is_valid, list_of_errors)
-        """
+        """Validate customer data structure"""
         required_fields = ['name', 'customer_id']
         errors = []
         
@@ -429,6 +319,7 @@ class Config:
                 'claude': bool(cls.CLAUDE_API_KEY),
                 'openai': bool(cls.OPENAI_API_KEY)
             },
+            'enabled_channels': cls.get_enabled_channels(),
             'rules_files': {
                 name: cls.get_rules_path(name).exists() if cls.get_rules_path(name) else False
                 for name in cls.RULES_FILES.keys()
