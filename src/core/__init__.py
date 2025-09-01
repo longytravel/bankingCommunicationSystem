@@ -9,6 +9,9 @@ from .smart_email_generator import SmartEmailGenerator, EmailResult, generate_sm
 # Import Smart SMS Generator (NEW - replacing old orchestrator)
 from .smart_sms_generator import SmartSMSGenerator, SMSResult, generate_smart_sms
 
+# Import Smart Letter Generator (NEW)
+from .smart_letter_generator import SmartLetterGenerator, LetterResult, generate_smart_letter
+
 # Import your existing working components
 from .content_validator import ContentValidator, PointImportance, KeyPoint, validate_personalization
 from .document_classifier import AIDocumentClassifier, ClassificationResult, DocumentType, classify_document
