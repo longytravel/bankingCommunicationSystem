@@ -638,10 +638,12 @@ with col1:
                         try:
                             with st.spinner(f"🧠 Shared Brain analyzing {selected_customer['name']}..."):
                                 
-                                # Run the complete Shared Brain analysis
+                                # Run the complete Shared Brain analysis - PASS EXISTING ANALYSIS TO SAVE API CALLS
                                 shared_context = st.session_state.shared_brain.analyze_everything(
                                     letter_content=st.session_state.letter_content,
-                                    customer_data=selected_customer
+                                    customer_data=selected_customer,
+                                    existing_classification=st.session_state.doc_classification,  # Reuse existing classification
+                                    existing_key_points=st.session_state.doc_key_points         # Reuse existing key points
                                 )
                                 
                                 # Store the shared context

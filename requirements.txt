@@ -21,5 +21,5 @@ plotly==5.15.0
 # Caching and Performance
 joblib==1.3.0
 
-# Image Processing
-Pillow==10.0.0
+# Image Processing - FIXED VERSION
+Pillow>=10.2.0

@@ -1,6 +1,6 @@
 """
 Shared Brain - Central Intelligence for Multi-Channel Personalization
-The all-powerful AI brain that analyzes everything and creates consistent context for all channels
+UPDATED: Reuses existing document analysis to save API calls and time
 """
 
 import os
@@ -20,34 +20,40 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import your existing working components with absolute imports
+# Import your existing working components
 try:
     from src.core.content_validator import ContentValidator, PointImportance
     CONTENT_VALIDATOR_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     CONTENT_VALIDATOR_AVAILABLE = False
-    print("⚠️ Content Validator not available")
+    print(f"⚠️ Content Validator not available: {e}")
 
 try:
     from src.core.document_classifier import AIDocumentClassifier, DocumentType
     DOCUMENT_CLASSIFIER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     DOCUMENT_CLASSIFIER_AVAILABLE = False
-    print("⚠️ Document Classifier not available")
+    print(f"⚠️ Document Classifier not available: {e}")
 
 try:
     from src.core.rules_engine import RulesEngine
     RULES_ENGINE_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     RULES_ENGINE_AVAILABLE = False
-    print("⚠️ Rules Engine not available")
+    print(f"⚠️ Rules Engine not available: {e}")
 
 try:
     from src.config import Config
     CONFIG_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     CONFIG_AVAILABLE = False
-    print("⚠️ Config module not available")
+    print(f"⚠️ Config module not available: {e}")
+    
+    # Create a minimal Config class if not available
+    class Config:
+        @classmethod
+        def load_rules_engine(cls, rules_type: str):
+            return None
 
 class PersonalizationLevel(Enum):
     """Levels of personalization intensity"""
@@ -110,10 +116,12 @@ class SharedContext:
     analysis_confidence: float
     processing_time: float
     ai_model_used: str
+    api_calls_saved: int  # Track saved API calls
 
 class SharedBrain:
     """
     The all-powerful AI brain that creates consistent, deeply personalized context
+    UPDATED: Now reuses existing analysis to save API calls
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -123,18 +131,18 @@ class SharedBrain:
         
         if self.api_key:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-sonnet-4-20250514"
+            self.model = "claude-sonnet-4-20250514"  # Updated model name
             print("🧠 Shared Brain initialized with Claude AI")
         else:
             print("⚠️ Shared Brain running in simulation mode")
         
         # Initialize all the existing working components
-        self.document_classifier = AIDocumentClassifier(api_key=self.api_key)
-        self.content_validator = ContentValidator(api_key=self.api_key)
+        self.document_classifier = AIDocumentClassifier(api_key=self.api_key) if DOCUMENT_CLASSIFIER_AVAILABLE else None
+        self.content_validator = ContentValidator(api_key=self.api_key) if CONTENT_VALIDATOR_AVAILABLE else None
         
         # Load rules engines
-        self.communication_rules = Config.load_rules_engine('communication')
-        self.personalization_rules = Config.load_rules_engine('personalization')
+        self.communication_rules = Config.load_rules_engine('communication') if CONFIG_AVAILABLE else None
+        self.personalization_rules = Config.load_rules_engine('personalization') if CONFIG_AVAILABLE else None
         
         print("✓ All brain components loaded and ready")
     
@@ -142,28 +150,46 @@ class SharedBrain:
         self,
         letter_content: str,
         customer_data: Dict[str, Any],
-        force_channels: Optional[List[str]] = None
+        force_channels: Optional[List[str]] = None,
+        existing_classification: Optional[Any] = None,  # NEW: Accept existing classification
+        existing_key_points: Optional[List] = None      # NEW: Accept existing key points
     ) -> SharedContext:
         """
         THE MAIN METHOD: Analyze everything and create the shared context
-        
-        This is where all the AI magic happens to create consistent, 
-        deeply personalized intelligence for all channels.
+        UPDATED: Reuses existing analysis when available to save API calls
         """
         
         start_time = datetime.now()
+        api_calls_saved = 0
         print(f"🧠 Shared Brain analyzing for customer: {customer_data.get('name', 'Unknown')}")
         
-        # STEP 1: Document Intelligence
-        print("  📄 Analyzing document...")
-        document_classification = self.document_classifier.classify_document(letter_content)
+        # STEP 1: Document Intelligence - USE EXISTING IF AVAILABLE
+        if existing_classification:
+            print("  📄 Using existing document classification (saving 1 API call)")
+            document_classification = existing_classification
+            api_calls_saved += 1
+        else:
+            print("  📄 Analyzing document...")
+            if self.document_classifier:
+                document_classification = self.document_classifier.classify_document(letter_content)
+            else:
+                document_classification = self._simulate_classification()
         
-        # STEP 2: Content Intelligence
-        print("  🔍 Extracting key content...")
-        key_points = self.content_validator.extract_key_points(letter_content)
+        # STEP 2: Content Intelligence - USE EXISTING IF AVAILABLE
+        if existing_key_points:
+            print("  🔍 Using existing key points (saving 1 API call)")
+            key_points = existing_key_points
+            api_calls_saved += 1
+        else:
+            print("  🔍 Extracting key content...")
+            if self.content_validator:
+                key_points = self.content_validator.extract_key_points(letter_content)
+            else:
+                key_points = []
+        
         content_strategy = self._create_content_strategy(key_points, document_classification)
         
-        # STEP 3: Customer Intelligence (THE BIG ONE)
+        # STEP 3: Customer Intelligence (THE BIG ONE) - Always fresh
         print("  👤 Deep customer analysis...")
         customer_insights = self._analyze_customer_deeply(customer_data, document_classification)
         
@@ -197,12 +223,12 @@ class SharedBrain:
             personalization_strategy
         )
         
-        # Create the shared context
+        # Create the shared context with API calls saved info
         shared_context = SharedContext(
             original_letter=letter_content,
             customer_data=customer_data,
             processing_timestamp=start_time.isoformat(),
-            document_classification=document_classification.to_dict(),
+            document_classification=document_classification.to_dict() if hasattr(document_classification, 'to_dict') else document_classification,
             customer_insights=customer_insights,
             rules_evaluation=rules_evaluation,
             personalization_strategy=personalization_strategy,
@@ -210,15 +236,29 @@ class SharedBrain:
             channel_decisions=channel_decisions,
             analysis_confidence=analysis_confidence,
             processing_time=processing_time,
-            ai_model_used=self.model if self.client else "simulation"
+            ai_model_used=self.model if self.client else "simulation",
+            api_calls_saved=api_calls_saved  # Track how many API calls we saved
         )
         
         print(f"✅ Shared Brain analysis complete in {processing_time:.2f}s")
+        if api_calls_saved > 0:
+            print(f"   💰 Saved {api_calls_saved} API calls by reusing existing analysis")
         print(f"   Customer Segment: {customer_insights.segment}")
         print(f"   Personalization Level: {personalization_strategy.level.value}")
         print(f"   Enabled Channels: {list(channel_decisions.get('enabled_channels', {}).keys())}")
         
         return shared_context
+    
+    def _simulate_classification(self):
+        """Fallback classification when classifier not available"""
+        return {
+            'primary_classification': 'INFORMATIONAL',
+            'confidence_score': 0.8,
+            'urgency_level': 'MEDIUM',
+            'customer_action_required': False,
+            'compliance_required': False,
+            'tone': 'PROFESSIONAL'
+        }
     
     def _analyze_customer_deeply(
         self, 
@@ -235,7 +275,11 @@ class SharedBrain:
         
         # Build comprehensive customer context for AI analysis
         customer_summary = self._build_customer_summary(customer_data)
-        document_context = f"Document type: {document_classification.primary_classification}, Tone: {document_classification.tone}, Urgency: {document_classification.urgency_level}"
+        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
+        doc_tone = document_classification.tone if hasattr(document_classification, 'tone') else document_classification.get('tone', 'FORMAL')
+        doc_urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
+        
+        document_context = f"Document type: {doc_type}, Tone: {doc_tone}, Urgency: {doc_urgency}"
         
         analysis_prompt = f"""You are an expert customer analyst for a major bank. Analyze this customer profile and create deep insights for personalization.
 
@@ -323,6 +367,9 @@ Analyze this customer now:"""
         if not self.client:
             return self._simulate_personalization_strategy(customer_insights)
         
+        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
+        doc_tone = document_classification.tone if hasattr(document_classification, 'tone') else document_classification.get('tone', 'FORMAL')
+        
         strategy_prompt = f"""You are a master personalization strategist for banking communications. Create a comprehensive personalization strategy.
 
 CUSTOMER INSIGHTS:
@@ -334,8 +381,8 @@ CUSTOMER INSIGHTS:
 - Special Factors: {', '.join(customer_insights.special_factors)}
 - Personalization Hooks: {', '.join(customer_insights.personalization_hooks)}
 
-DOCUMENT TYPE: {document_classification.primary_classification}
-DOCUMENT TONE: {document_classification.tone}
+DOCUMENT TYPE: {doc_type}
+DOCUMENT TONE: {doc_tone}
 
 LETTER CONTENT PREVIEW:
 {letter_content[:500]}...
@@ -419,13 +466,13 @@ Create the strategy now:"""
         """
         
         # Separate points by importance
-        critical_points = [p for p in key_points if p.importance == PointImportance.CRITICAL]
-        important_points = [p for p in key_points if p.importance == PointImportance.IMPORTANT]
-        contextual_points = [p for p in key_points if p.importance == PointImportance.CONTEXTUAL]
+        critical_points = [p for p in key_points if hasattr(p, 'importance') and p.importance == PointImportance.CRITICAL]
+        important_points = [p for p in key_points if hasattr(p, 'importance') and p.importance == PointImportance.IMPORTANT]
+        contextual_points = [p for p in key_points if hasattr(p, 'importance') and p.importance == PointImportance.CONTEXTUAL]
         
         # Channel requirements based on document type and urgency
-        doc_type = document_classification.primary_classification
-        urgency = document_classification.urgency_level
+        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
+        urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
         
         if doc_type == "REGULATORY" or urgency == "HIGH":
             # Regulatory/urgent: more content in more channels
@@ -483,9 +530,9 @@ Create the strategy now:"""
         context = {
             'customer': customer_data,
             'document': {
-                'type': document_classification.primary_classification,
-                'urgency': document_classification.urgency_level,
-                'compliance_required': document_classification.compliance_required
+                'type': document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL'),
+                'urgency': document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM'),
+                'compliance_required': document_classification.compliance_required if hasattr(document_classification, 'compliance_required') else document_classification.get('compliance_required', False)
             },
             'insights': {
                 'segment': customer_insights.segment,
@@ -553,7 +600,8 @@ Create the strategy now:"""
             channel_reasons['sms'] = "Assisted customer segment - SMS preferred"
         elif customer_insights.segment == 'DIGITAL':
             # Digital customers get SMS only for urgent items
-            sms_eligible = document_classification.urgency_level in ['HIGH', 'MEDIUM']
+            urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
+            sms_eligible = urgency in ['HIGH', 'MEDIUM']
             reason = "Digital customer - SMS for urgent only" if sms_eligible else "Digital customer prefers app/email"
             channel_reasons['sms'] = reason
         
@@ -570,8 +618,8 @@ Create the strategy now:"""
         channel_reasons['voice'] = "Enabled by voice rules" if voice_enabled else "Not eligible for voice notes"
         
         # Letter - for traditional customers or regulatory documents
-        letter_enabled = (customer_insights.segment == 'TRADITIONAL' or 
-                         document_classification.primary_classification == 'REGULATORY')
+        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
+        letter_enabled = (customer_insights.segment == 'TRADITIONAL' or doc_type == 'REGULATORY')
         enabled_channels['letter'] = letter_enabled
         channel_reasons['letter'] = "Traditional customer or regulatory document" if letter_enabled else "Digital delivery preferred"
         
@@ -629,7 +677,7 @@ Create the strategy now:"""
     ) -> float:
         """Calculate overall confidence in the analysis"""
         
-        doc_confidence = document_classification.confidence_score
+        doc_confidence = document_classification.confidence_score if hasattr(document_classification, 'confidence_score') else document_classification.get('confidence_score', 0.8)
         customer_confidence = customer_insights.confidence_score
         
         # Factor in personalization level - higher levels need higher confidence
@@ -742,5 +790,6 @@ Create the strategy now:"""
             'document_type': shared_context.document_classification.get('primary_classification'),
             'key_personalization_hooks': shared_context.customer_insights.personalization_hooks,
             'must_mention_items': shared_context.personalization_strategy.must_mention,
-            'ai_model_used': shared_context.ai_model_used
+            'ai_model_used': shared_context.ai_model_used,
+            'api_calls_saved': shared_context.api_calls_saved
         }
