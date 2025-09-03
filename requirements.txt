@@ -1,10 +1,11 @@
 # Lloyds Banking Communication System - Dependencies
+# Fixed versions to prevent build issues on Streamlit Cloud
 
 # Core Web Framework
 streamlit==1.28.0
 
-# Data Processing
-pandas==2.0.0
+# Data Processing - Use stable version with wheels
+pandas==2.2.2
 openpyxl==3.1.2
 
 # AI APIs

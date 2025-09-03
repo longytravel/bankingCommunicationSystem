@@ -1,4 +1,6 @@
+# Minimal system packages for Streamlit Cloud
+# Only include what's absolutely necessary to reduce build time
+
+# For image processing (if needed)
 libjpeg-dev
-zlib1g-dev
 libpng-dev
-libfreetype6-dev
