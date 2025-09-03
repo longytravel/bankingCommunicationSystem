@@ -1,7 +1,6 @@
-﻿# Updated for Python 3.13 compatibility
+﻿# Let streamlit handle numpy dependency
 streamlit==1.28.0
 pandas==2.2.2
-numpy>=2.0.0
 openpyxl==3.1.2
 anthropic==0.25.0
 openai==1.12.0
