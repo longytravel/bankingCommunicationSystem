@@ -2,6 +2,7 @@
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
 WITH all document intelligence, customer insights, and VOICE support
+FIXED: Using correct voice module import
 """
 
 import streamlit as st
@@ -42,14 +43,20 @@ except Exception as e:
     st.error("Core modules not available - check installation")
     st.stop()
 
-# Try to import voice generator (might not exist yet)
+# Try to import voice generator (use the enhanced version with audio file support)
 try:
-    from src.core.smart_voice_generator import SmartVoiceGenerator
+    from src.core.voice_note_generator_enhanced import SmartVoiceGenerator
     VOICE_AVAILABLE = True
-    print("✅ Voice module loaded")
+    print("✅ Voice module loaded (enhanced version with audio support)")
 except ImportError:
-    VOICE_AVAILABLE = False
-    print("⚠️ Voice module not available")
+    try:
+        # Fallback to basic voice generator if enhanced not available
+        from src.core.voice_note_generator import SmartVoiceGenerator
+        VOICE_AVAILABLE = True
+        print("✅ Voice module loaded (basic version)")
+    except ImportError:
+        VOICE_AVAILABLE = False
+        print("⚠️ Voice module not available")
 
 # Page configuration
 st.set_page_config(
@@ -130,6 +137,7 @@ class PersonalizationApp:
             # Add voice if available
             if VOICE_AVAILABLE:
                 generators['voice'] = SmartVoiceGenerator()
+                print("✅ Voice generator added to generators")
             
             st.session_state.generators = generators
     

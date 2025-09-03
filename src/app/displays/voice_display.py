@@ -9,17 +9,8 @@ from typing import Dict, Any, Optional
 import base64
 from datetime import datetime
 
-# Import the base display class
-try:
-    from src.display.base_display import BaseChannelDisplay
-except ImportError:
-    # If base display doesn't exist, create a simple version
-    class BaseChannelDisplay:
-        def display_header(self, title: str, icon: str = ""):
-            st.subheader(f"{icon} {title}")
-        
-        def display_metric(self, label: str, value: Any):
-            st.metric(label, value)
+# Import the base display class - FIXED import path
+from .base_display import BaseChannelDisplay
 
 # Import voice result type
 try:
@@ -49,15 +40,18 @@ class VoiceDisplay(BaseChannelDisplay):
     """Display component for voice notes with audio player"""
     
     def __init__(self):
-        super().__init__()
-        self.channel_name = "Voice Note"
-        self.channel_icon = "🎙️"
+        # FIXED: Properly initialize base class with channel_name and icon
+        super().__init__(channel_name="Voice Note", icon="🎙️")
+    
+    def display_result(self, result: Any, shared_context: Any) -> None:
+        """Override base class method to display voice result"""
+        self.display(result, shared_context)
     
     def display(self, result: VoiceResult, shared_context: Any, validation: Optional[Dict] = None):
         """Display voice note with audio player"""
         
-        # Header
-        self.display_header(f"{self.channel_icon} Voice Note", self.channel_icon)
+        # Header using the icon from base class
+        self.display_header(f"{self.icon} Voice Note", self.icon)
         
         # Status badges
         col1, col2, col3, col4 = st.columns(4)
@@ -226,110 +220,63 @@ class VoiceDisplay(BaseChannelDisplay):
         
         return formatted
     
-    def display_analytics(self, results: list):
-        """Display analytics for multiple voice notes"""
-        st.markdown("### 📊 Voice Note Analytics")
-        
-        if not results:
-            st.info("No voice notes generated yet")
-            return
-        
-        # Calculate stats
-        total = len(results)
-        with_audio = sum(1 for r in results if r.audio_file_path)
-        avg_duration = sum(r.duration_estimate for r in results) / total if total > 0 else 0
-        languages = {}
-        for r in results:
-            languages[r.language] = languages.get(r.language, 0) + 1
-        
-        # Display metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Voice Notes", total)
-        
-        with col2:
-            st.metric("With Audio", f"{with_audio}/{total}")
-        
-        with col3:
-            st.metric("Avg Duration", f"{avg_duration:.1f}s")
-        
-        with col4:
-            st.metric("Languages", len(languages))
-        
-        # Language breakdown
-        if languages:
-            st.markdown("**Language Distribution:**")
-            for lang, count in sorted(languages.items(), key=lambda x: x[1], reverse=True):
-                percentage = (count / total) * 100
-                st.progress(percentage / 100)
-                st.text(f"{lang}: {count} ({percentage:.1f}%)")
-        
-        # Quality distribution
-        quality_scores = [r.quality_score for r in results if r.quality_score > 0]
-        if quality_scores:
-            avg_quality = sum(quality_scores) / len(quality_scores)
-            
-            st.markdown("**Quality Metrics:**")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Avg Quality", f"{avg_quality*100:.1f}%")
-            
-            with col2:
-                high_quality = sum(1 for s in quality_scores if s >= 0.8)
-                st.metric("High Quality", f"{high_quality}/{len(quality_scores)}")
-            
-            with col3:
-                low_quality = sum(1 for s in quality_scores if s < 0.6)
-                if low_quality > 0:
-                    st.warning(f"Low Quality: {low_quality}")
-                else:
-                    st.success("No Low Quality")
+    def display_header(self, title: str, icon: str = ""):
+        """Helper method to display header"""
+        st.subheader(f"{icon} {title}" if icon else title)
     
-    def display_comparison(self, result1: VoiceResult, result2: VoiceResult):
-        """Compare two voice notes side by side"""
-        st.markdown("### 🔄 Voice Note Comparison")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Voice Note 1**")
-            self._display_summary(result1)
-        
-        with col2:
-            st.markdown("**Voice Note 2**")
-            self._display_summary(result2)
+    def display_metric(self, label: str, value: Any):
+        """Helper method to display metric"""
+        st.metric(label, value)
     
-    def _display_summary(self, result: VoiceResult):
-        """Display summary of a voice note"""
-        if result.generation_method == 'disabled':
-            st.error("Disabled")
-            return
+    def validate_result(self, result: Any, shared_context: Any) -> Dict[str, Any]:
+        """Validate voice result"""
+        validation = {
+            'is_valid': True,
+            'quality_score': result.quality_score if hasattr(result, 'quality_score') else 0,
+            'issues': [],
+            'achievements': [],
+            'metrics': {}
+        }
         
-        st.info(f"Language: {result.language}")
-        st.text(f"Duration: {result.duration_estimate:.1f}s")
-        st.text(f"Words: {result.word_count}")
-        st.text(f"Quality: {result.quality_score*100:.0f}%")
+        # Check if result has required attributes
+        if hasattr(result, 'duration_estimate'):
+            if result.duration_estimate > 0:
+                validation['achievements'].append(f"Duration: {result.duration_estimate:.1f}s")
+                validation['metrics']['duration'] = result.duration_estimate
+            else:
+                validation['issues'].append("No duration estimate")
         
-        if result.audio_file_path:
-            st.success("✅ Has Audio")
+        if hasattr(result, 'audio_file_path') and result.audio_file_path:
+            validation['achievements'].append("Audio file generated")
+            validation['metrics']['has_audio'] = True
         else:
-            st.warning("📝 Script Only")
+            validation['metrics']['has_audio'] = False
         
-        # Show first few words of script
-        if result.content:
-            preview = result.content[:100] + "..." if len(result.content) > 100 else result.content
-            st.text_area("Preview:", preview, height=100, disabled=True)
-
-
-def create_voice_display() -> VoiceDisplay:
-    """Factory function to create voice display"""
-    return VoiceDisplay()
-
+        if hasattr(result, 'language'):
+            validation['metrics']['language'] = result.language
+        
+        return validation
+    
+    def get_download_data(self, result: Any, customer_name: str) -> tuple[str, str, str]:
+        """Get download data for voice script"""
+        content = result.content if hasattr(result, 'content') else ''
+        
+        if not content:
+            return "", "", ""
+        
+        customer_filename = customer_name.replace(' ', '_') if customer_name else 'customer'
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        filename = f"voice_script_{customer_filename}_{timestamp}.txt"
+        
+        return content, filename, "text/plain"
 
 # Standalone display function for testing
 def display_voice_note(result: VoiceResult, shared_context: Any = None, validation: Dict = None):
     """Display a voice note result"""
     display = VoiceDisplay()
     display.display(result, shared_context, validation)
+
+def create_voice_display() -> VoiceDisplay:
+    """Factory function to create voice display"""
+    return VoiceDisplay()

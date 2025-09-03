@@ -1,6 +1,7 @@
 """
 Smart Voice Note Generator - With Audio Generation and Multi-Language Support
 Generates actual audio files that can be played in the app
+FIXED: All VoiceResult objects include audio_file_path field
 """
 
 import os
@@ -525,7 +526,7 @@ CRITICAL: Write the ENTIRE script in {language}, not English!"""
         language: str,
         method: str
     ) -> VoiceResult:
-        """Create VoiceResult from parsed data"""
+        """Create VoiceResult from parsed data - FIXED with audio_file_path"""
         
         script = data.get('script', '')
         word_count = len(script.split())
@@ -547,12 +548,13 @@ CRITICAL: Write the ENTIRE script in {language}, not English!"""
             generation_method=method,
             processing_time=0.0,
             quality_score=0.8,
-            audio_file_path=None,
+            audio_file_path=None,  # Will be set after audio generation
+            audio_format="mp3",
             tts_engine_used="pending"
         )
     
     def _generate_fallback(self, shared_context: SharedContext) -> VoiceResult:
-        """Generate fallback script when AI unavailable"""
+        """Generate fallback script when AI unavailable - FIXED with audio_file_path"""
         
         customer = shared_context.customer_data
         name = customer.get('name', '').split()[0] if customer.get('name') else 'there'
@@ -608,12 +610,13 @@ CRITICAL: Write the ENTIRE script in {language}, not English!"""
             generation_method='fallback',
             processing_time=0.0,
             quality_score=0.6,
-            audio_file_path=None,
+            audio_file_path=None,  # Will be set after audio generation
+            audio_format="mp3",
             tts_engine_used="none"
         )
     
     def _create_disabled_result(self, shared_context: SharedContext) -> VoiceResult:
-        """Create empty result when voice is disabled"""
+        """Create empty result when voice is disabled - FIXED with audio_file_path"""
         return VoiceResult(
             content="",
             duration_estimate=0.0,
@@ -626,7 +629,8 @@ CRITICAL: Write the ENTIRE script in {language}, not English!"""
             generation_method='disabled',
             processing_time=0.0,
             quality_score=0.0,
-            audio_file_path=None,
+            audio_file_path=None,  # Explicitly set to None
+            audio_format="mp3",
             tts_engine_used="none"
         )
     
