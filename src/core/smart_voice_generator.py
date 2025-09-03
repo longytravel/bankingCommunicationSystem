@@ -1,27 +1,37 @@
 """
-Smart Voice Note Generator - Self-contained with configuration
-Uses SharedContext for Consistent, Natural Voice Messages
+Smart Voice Note Generator - Complete Rewrite with OpenAI TTS
+Uses SharedContext for Consistent, Natural Voice Messages with Proper Language Support
 """
 
 import os
 import json
 import re
+import time
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass
-from enum import Enum
+from pathlib import Path
 
-# Environment setup
+# Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
-# AI imports
+# Import OpenAI for TTS
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("⚠️ OpenAI not available - install with: pip install openai")
+
+# Import Anthropic for script generation
 try:
     import anthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
-    print("⚠️ Anthropic not available - using simulation mode")
+    print("⚠️ Anthropic not available - install with: pip install anthropic")
 
 # Import SharedContext
 import sys
@@ -38,12 +48,12 @@ except ImportError:
 
 @dataclass
 class VoiceResult:
-    """Result from voice note generation - MUST match pattern of other results"""
+    """Result from voice note generation"""
     content: str  # The script/text for the voice note
     duration_estimate: float  # Estimated duration in seconds
     word_count: int
     speaking_pace: str  # slow, normal, fast
-    tone_markers: List[str]  # Emotional tone markers for voice synthesis
+    tone_markers: List[str]  # Emotional tone markers
     personalization_elements: List[str]
     natural_pauses: List[int]  # Word positions where pauses should occur
     emphasis_words: List[str]  # Words to emphasize
@@ -51,467 +61,426 @@ class VoiceResult:
     generation_method: str
     processing_time: float
     quality_score: float
-    requires_callback: bool  # If true, offer callback option
+    requires_callback: bool
+    audio_file_path: Optional[str] = None  # Path to generated audio file
+    audio_data: Optional[str] = None  # Base64 encoded audio
 
 class SmartVoiceGenerator:
     """
-    Smart Voice Note Generator - Self-contained with all configuration
-    Takes a SharedContext and generates perfectly aligned voice content
+    Smart Voice Note Generator with OpenAI TTS Support
+    Generates personalized, natural voice messages in multiple languages
     """
     
-    # ============== VOICE NOTE CONFIGURATION ==============
+    # Voice Configuration
     VOICE_CONFIG = {
-        'max_duration': 120,  # Maximum 2 minutes
-        'min_duration': 15,   # Minimum 15 seconds
+        'max_duration': 90,  # Maximum 90 seconds
         'optimal_duration': 45,  # Ideal 45 seconds
+        'min_duration': 15,  # Minimum 15 seconds
         'speaking_rates': {
             'slow': 120,     # words per minute
             'normal': 150,   # words per minute  
             'fast': 180      # words per minute
         },
-        'format': {
-            'audio_format': 'mp3',
-            'sample_rate': 22050,
-            'bitrate': 128
-        },
-        'greeting_styles': {
-            'DIGITAL': {
-                'style': 'warm_casual',
-                'greeting': 'Hi {first_name}, this is {bank_rep} from Lloyds',
-                'closing': 'Thanks for being with Lloyds. Have a great day!',
-                'tone': 'friendly',
-                'pace': 'normal'
+        'openai_voices': {
+            # Voice selection by language and tone
+            'English': {
+                'professional': 'alloy',
+                'friendly': 'nova',
+                'warm': 'shimmer',
+                'authoritative': 'onyx'
             },
-            'ASSISTED': {
-                'style': 'professional_warm',
-                'greeting': 'Hello {first_name}, this is {bank_rep} calling from Lloyds Bank',
-                'closing': 'Thank you for your time. If you need anything, we\'re here to help.',
-                'tone': 'professional_friendly',
-                'pace': 'normal'
+            'Spanish': {
+                'professional': 'alloy',
+                'friendly': 'nova',  # Nova works well for Spanish
+                'warm': 'shimmer',
+                'authoritative': 'echo'
             },
-            'TRADITIONAL': {
-                'style': 'formal_respectful',
-                'greeting': 'Good {time_of_day} {title} {last_name}, this is {bank_rep} from Lloyds Banking Group',
-                'closing': 'Thank you for your attention. Please don\'t hesitate to contact your branch if you need assistance.',
-                'tone': 'formal',
-                'pace': 'slow'
+            'French': {
+                'professional': 'alloy',
+                'friendly': 'shimmer',
+                'warm': 'nova',
+                'authoritative': 'onyx'
+            },
+            'Chinese': {
+                'professional': 'alloy',
+                'friendly': 'nova',
+                'warm': 'shimmer',
+                'authoritative': 'echo'
             }
         },
-        'natural_speech_patterns': {
-            'use_contractions': True,  # "we're" instead of "we are"
-            'add_filler_words': False,  # Avoid "um", "uh"
-            'conversational_tone': True,
-            'personal_anecdotes': False
-        },
-        'voice_characteristics': {
-            'DIGITAL': {
-                'energy': 'high',
-                'warmth': 'very_warm',
-                'formality': 'casual',
-                'accent': 'neutral'
+        'greetings': {
+            'English': {
+                'morning': 'Good morning',
+                'afternoon': 'Good afternoon', 
+                'evening': 'Good evening'
             },
-            'ASSISTED': {
-                'energy': 'medium',
-                'warmth': 'warm',
-                'formality': 'professional',
-                'accent': 'neutral'
+            'Spanish': {
+                'morning': 'Buenos días',
+                'afternoon': 'Buenas tardes',
+                'evening': 'Buenas tardes'
             },
-            'TRADITIONAL': {
-                'energy': 'calm',
-                'warmth': 'cordial',
-                'formality': 'formal',
-                'accent': 'received_pronunciation'
+            'French': {
+                'morning': 'Bonjour',
+                'afternoon': 'Bonjour',
+                'evening': 'Bonsoir'
+            },
+            'Chinese': {
+                'morning': '早上好',
+                'afternoon': '下午好',
+                'evening': '晚上好'
             }
-        },
-        'content_structure': {
-            'include_purpose_upfront': True,  # State why calling immediately
-            'use_signposting': True,  # "First..., Second..., Finally..."
-            'summarize_key_points': True,
-            'offer_callback': True,
-            'mention_other_channels': True
-        },
-        'quality_thresholds': {
-            'min_clarity_score': 0.8,
-            'max_information_density': 0.7,  # Don't pack too much info
-            'min_personalization': 2,  # Fewer than written due to brevity
-            'optimal_sentence_length': 15  # words
-        },
-        'callback_triggers': {
-            'URGENT': True,
-            'REGULATORY': True,
-            'complex_action_required': True,
-            'vulnerable_customer': True
         }
     }
     
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the smart voice generator"""
-        self.api_key = api_key or os.getenv('CLAUDE_API_KEY')
-        self.client = None
-        self.config = self.VOICE_CONFIG
+    def __init__(self, api_key: Optional[str] = None, openai_key: Optional[str] = None):
+        """Initialize the voice generator with both Claude and OpenAI"""
         
-        if self.api_key and ANTHROPIC_AVAILABLE:
-            self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-5-sonnet-20241022"
-            print("✅ Smart Voice Generator initialized with Claude AI")
+        print("🎙️ Initializing Smart Voice Generator...")
+        
+        # Initialize Claude for script generation
+        self.claude_key = api_key or os.getenv('CLAUDE_API_KEY')
+        self.claude_client = None
+        
+        if self.claude_key and ANTHROPIC_AVAILABLE:
+            try:
+                self.claude_client = anthropic.Anthropic(api_key=self.claude_key)
+                self.claude_model = "claude-3-5-sonnet-20241022"
+                print(f"   ✅ Claude initialized for script generation")
+            except Exception as e:
+                print(f"   ❌ Claude initialization failed: {e}")
         else:
-            print("⚠️ Smart Voice Generator running in simulation mode")
+            print("   ⚠️ Claude not available - will use fallback scripts")
+        
+        # Initialize OpenAI for TTS
+        self.openai_key = openai_key or os.getenv('OPENAI_API_KEY')
+        self.openai_client = None
+        
+        if self.openai_key and OPENAI_AVAILABLE:
+            try:
+                self.openai_client = OpenAI(api_key=self.openai_key)
+                print(f"   ✅ OpenAI initialized for text-to-speech")
+            except Exception as e:
+                print(f"   ❌ OpenAI initialization failed: {e}")
+        else:
+            print("   ⚠️ OpenAI not available - audio generation disabled")
+        
+        # Create voice notes directory
+        self.voice_notes_dir = Path("output/voice_notes")
+        self.voice_notes_dir.mkdir(parents=True, exist_ok=True)
     
     def generate_voice_note(self, shared_context: SharedContext) -> VoiceResult:
         """
-        Generate a perfectly personalized voice note script using the Shared Brain's intelligence
-        
-        Args:
-            shared_context: The complete intelligence from SharedBrain.analyze_everything()
-            
-        Returns:
-            VoiceResult with the generated voice script and metadata
+        Main method: Generate a personalized voice note from SharedContext
         """
         start_time = datetime.now()
         
-        print(f"🎙️ Generating smart voice note for {shared_context.customer_data.get('name')}...")
+        # Extract customer info
+        customer = shared_context.customer_data
+        customer_name = customer.get('name', 'Customer')
+        language = customer.get('preferred_language', 'English')
         
-        # Check if voice is enabled (might not be in channel_decisions yet)
+        print(f"🎙️ Generating voice note for {customer_name} in {language}...")
+        
+        # Check if voice is enabled
         if not shared_context.channel_decisions['enabled_channels'].get('voice', True):
-            return self._create_disabled_result(shared_context, "Voice disabled by rules")
+            return self._create_disabled_result(shared_context)
         
-        if self.client:
-            result = self._generate_with_ai(shared_context)
+        # Generate script
+        if self.claude_client:
+            script_result = self._generate_script_with_ai(shared_context)
         else:
-            result = self._generate_simulation(shared_context)
+            script_result = self._generate_fallback_script(shared_context)
         
-        # Calculate processing time
+        # Generate audio if OpenAI is available
+        if self.openai_client and script_result.content:
+            audio_path = self._generate_audio_with_openai(
+                script_result.content,
+                customer_name,
+                language,
+                shared_context.customer_insights.segment
+            )
+            script_result.audio_file_path = audio_path
+        
+        # Calculate final metrics
         processing_time = (datetime.now() - start_time).total_seconds()
-        result.processing_time = processing_time
+        script_result.processing_time = processing_time
         
-        print(f"✅ Smart voice note generated in {processing_time:.2f}s")
-        print(f"   Duration: {result.duration_estimate:.1f}s, Quality: {result.quality_score:.2%}")
+        print(f"✅ Voice note completed in {processing_time:.2f}s")
+        print(f"   Language: {script_result.language}")
+        print(f"   Duration: {script_result.duration_estimate:.1f}s")
+        print(f"   Quality: {script_result.quality_score:.1%}")
+        if script_result.audio_file_path:
+            print(f"   Audio: {script_result.audio_file_path}")
         
-        return result
+        return script_result
     
-    def _generate_with_ai(self, shared_context: SharedContext) -> VoiceResult:
-        """Generate voice note using AI"""
+    def _generate_script_with_ai(self, shared_context: SharedContext) -> VoiceResult:
+        """Generate voice script using Claude AI"""
         
-        # Extract intelligence
+        # Extract all needed information
         customer = shared_context.customer_data
         insights = shared_context.customer_insights
         strategy = shared_context.personalization_strategy
         content_strategy = shared_context.content_strategy
         
-        # Get configuration
-        segment = insights.segment
-        greeting_config = self.config['greeting_styles'].get(segment, self.config['greeting_styles']['ASSISTED'])
-        voice_chars = self.config['voice_characteristics'].get(segment, self.config['voice_characteristics']['ASSISTED'])
+        language = customer.get('preferred_language', 'English')
+        name = customer.get('name', 'Customer')
         
-        # Determine if callback needed
-        doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
-        urgency = shared_context.document_classification.get('urgency_level', 'LOW')
-        requires_callback = (
-            doc_type in ['URGENT', 'REGULATORY'] or
-            urgency == 'HIGH' or
-            shared_context.document_classification.get('customer_action_required', False)
-        )
-        
-        # Build prompt
-        generation_prompt = self._build_generation_prompt(
+        # Build the prompt
+        prompt = self._build_ai_prompt(
             shared_context.original_letter,
             customer,
             insights,
             strategy,
             content_strategy,
-            greeting_config,
-            voice_chars,
-            doc_type,
-            requires_callback
+            language
         )
         
         try:
-            response = self.client.messages.create(
-                model=self.model,
+            # Call Claude
+            response = self.claude_client.messages.create(
+                model=self.claude_model,
                 max_tokens=2000,
                 temperature=0.7,  # Higher for more natural speech
-                messages=[{"role": "user", "content": generation_prompt}]
+                messages=[{"role": "user", "content": prompt}]
             )
             
+            # Parse response
             content = response.content[0].text.strip()
-            voice_data = self._parse_ai_response(content)
+            parsed = self._parse_ai_response(content)
             
-            if voice_data:
-                return self._create_voice_result(voice_data, shared_context, "ai_generation", requires_callback)
+            if parsed and 'script' in parsed:
+                return self._create_voice_result(parsed, language, "ai_generation")
             else:
-                return self._generate_fallback(shared_context)
+                print("   ⚠️ Failed to parse AI response, using fallback")
+                return self._generate_fallback_script(shared_context)
                 
         except Exception as e:
-            print(f"AI voice generation error: {e}")
-            return self._generate_fallback(shared_context)
+            print(f"   ❌ AI generation error: {e}")
+            return self._generate_fallback_script(shared_context)
     
-    def _build_generation_prompt(
-        self, 
-        original_letter: str,
-        customer: Dict[str, Any],
-        insights,
-        strategy,
-        content_strategy,
-        greeting_config: Dict[str, Any],
-        voice_chars: Dict[str, Any],
-        doc_type: str,
-        requires_callback: bool
-    ) -> str:
-        """Build the voice generation prompt"""
+    def _build_ai_prompt(self, letter: str, customer: Dict, insights: Any, 
+                         strategy: Any, content_strategy: Any, language: str) -> str:
+        """Build the prompt for Claude to generate voice script"""
         
-        # Get only critical points for voice (brevity is key)
-        critical_points = [p.content for p in content_strategy.critical_points[:3]]
+        # Get critical points
+        critical_points = []
+        if hasattr(content_strategy, 'critical_points'):
+            critical_points = [p.content for p in content_strategy.critical_points[:3]]
         
-        # Format greeting
-        first_name = customer.get('name', '').split()[0] if customer.get('name') else 'there'
-        greeting = greeting_config['greeting'].format(
-            first_name=first_name,
-            bank_rep="Sarah",  # Could be dynamic
-            time_of_day="morning",  # Could be based on time
-            title="Mr" if customer.get('gender') == 'M' else "Ms",
-            last_name=customer.get('name', '').split()[-1] if customer.get('name') else ''
-        )
+        # Get time-based greeting
+        hour = datetime.now().hour
+        if hour < 12:
+            time_period = 'morning'
+        elif hour < 17:
+            time_period = 'afternoon'
+        else:
+            time_period = 'evening'
         
-        # Calculate target duration
-        target_words = int(self.config['optimal_duration'] * self.config['speaking_rates']['normal'] / 60)
+        greeting = self.VOICE_CONFIG['greetings'].get(language, {}).get(time_period, 'Hello')
         
-        prompt = f"""Generate a natural, conversational VOICE NOTE SCRIPT for a phone message to a bank customer.
+        prompt = f"""Create a natural, conversational voice message script for a bank customer.
 
-CRITICAL: This will be SPOKEN ALOUD, so write exactly how someone would naturally speak on the phone.
+LANGUAGE: {language} - Write ENTIRELY in {language}
 
-CUSTOMER CONTEXT:
+CUSTOMER INFO:
 - Name: {customer.get('name')}
-- Segment: {insights.segment} (speak {greeting_config['pace']} pace)
+- Age: {customer.get('age')}
+- Segment: {insights.segment}
 - Life Stage: {insights.life_stage}
-- Communication Style: {insights.communication_style}
-- Special Context: {insights.special_factors[0] if insights.special_factors else 'None'}
+- Recent Events: {', '.join(insights.special_factors[:2]) if insights.special_factors else 'None'}
+- Financial Profile: {insights.financial_profile}
 
-KEY INFORMATION TO CONVEY (pick most important for voice):
+PERSONALIZATION REQUIREMENTS:
+- Must mention: {', '.join(strategy.must_mention[:2]) if strategy.must_mention else 'general update'}
+- Customer story: {strategy.customer_story}
+- Tone: {insights.communication_style}
+
+ORIGINAL LETTER KEY CONTENT:
+{letter[:500]}
+
+CRITICAL POINTS TO INCLUDE:
 {chr(10).join(['• ' + point for point in critical_points])}
 
-VOICE REQUIREMENTS:
-- Start: "{greeting}"
-- Tone: {greeting_config['tone']} and {voice_chars['warmth']}
-- Length: {target_words} words (about {self.config['optimal_duration']} seconds when spoken)
-- End: "{greeting_config['closing']}"
-- Natural speech: Use contractions, sound conversational
-- Be CONCISE: This is a voice message, not a letter
-{"- MUST offer callback option due to importance" if requires_callback else ""}
+REQUIREMENTS:
+1. Start with: "{greeting} [name], this is [bank representative] from Lloyds Bank"
+2. Write in natural, conversational {language}
+3. Length: 80-120 words (about 45 seconds when spoken)
+4. Include personal touches based on their life stage/events
+5. Sound warm and human, not robotic
+6. End with callback offer if action is required
 
-PERSONALIZATION:
-- Reference ONE specific thing about the customer
-- Sound like you know them
-- Use their name once more in the middle
-
-SPEECH PATTERNS:
-- Write as SPOKEN language, not written
-- Use "we're", "you'll", "won't" etc.
-- Break up long sentences
-- Sound warm and human
-
-Generate as JSON:
+Generate a JSON response:
 {{
-    "voice_script": "Complete natural speech script with pauses indicated by '...'",
-    "tone_markers": ["warm", "urgent", "friendly", etc],
-    "emphasis_words": ["important", "deadline", etc - words to stress],
-    "personalization_elements": ["what was personalized"],
-    "natural_pauses": [15, 30, 45],  // Word positions for pauses
-    "speaking_pace": "slow|normal|fast"
+    "script": "Complete voice script in {language}",
+    "personalization_used": ["list", "of", "personal", "elements"],
+    "tone": "friendly/professional/warm",
+    "emphasis_words": ["important", "words", "to", "stress"]
 }}
 
-Make it sound like a real person calling, not a robot reading a script."""
+Write the script as someone would naturally speak on the phone in {language}."""
         
         return prompt
     
-    def _parse_ai_response(self, content: str) -> Optional[Dict[str, Any]]:
-        """Parse the AI response - reusing the robust parsing from email/letter"""
-        
-        # Remove markdown formatting if present
-        content = content.replace('```json', '').replace('```', '').strip()
-        
-        # Clean up common issues
-        content = content.replace('\n', ' ')
-        content = content.replace('\r', '')
-        content = content.replace('\t', ' ')
-        
-        # Try direct JSON parsing first
-        try:
-            parsed = json.loads(content)
-            if parsed and isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-        
-        # Try to extract JSON from content
-        if '{' in content and '}' in content:
-            try:
-                json_start = content.index('{')
-                json_end = content.rindex('}') + 1
-                json_str = content[json_start:json_end]
-                
-                # Clean the extracted JSON
-                json_str = re.sub(r'[\r\n\t]', ' ', json_str)
-                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-                
-                parsed = json.loads(json_str)
-                if parsed and isinstance(parsed, dict):
-                    return parsed
-            except (json.JSONDecodeError, ValueError) as e:
-                print(f"JSON extraction failed: {e}")
-        
-        print("⚠️ All parsing attempts failed for voice response")
-        return None
-    
-    def _create_voice_result(
-        self, 
-        voice_data: Dict[str, Any], 
-        shared_context: SharedContext,
-        method: str,
-        requires_callback: bool
-    ) -> VoiceResult:
-        """Create VoiceResult from parsed data"""
-        
-        script = voice_data.get('voice_script', '')
-        word_count = len(script.split())
-        
-        # Calculate duration based on pace
-        pace = voice_data.get('speaking_pace', 'normal')
-        wpm = self.config['speaking_rates'].get(pace, 150)
-        duration_estimate = (word_count / wpm) * 60  # in seconds
-        
-        # Calculate quality score
-        quality_score = self._calculate_quality_score(
-            script,
-            voice_data.get('personalization_elements', []),
-            duration_estimate,
-            shared_context
-        )
-        
-        return VoiceResult(
-            content=script,
-            duration_estimate=duration_estimate,
-            word_count=word_count,
-            speaking_pace=pace,
-            tone_markers=voice_data.get('tone_markers', ['professional']),
-            personalization_elements=voice_data.get('personalization_elements', []),
-            natural_pauses=voice_data.get('natural_pauses', []),
-            emphasis_words=voice_data.get('emphasis_words', []),
-            language=shared_context.customer_data.get('preferred_language', 'English'),
-            generation_method=method,
-            processing_time=0.0,
-            quality_score=quality_score,
-            requires_callback=requires_callback
-        )
-    
-    def _calculate_quality_score(
-        self, 
-        script: str,
-        personalization_elements: List[str],
-        duration: float,
-        shared_context: SharedContext
-    ) -> float:
-        """Calculate quality score for voice note"""
-        
-        score = 0.5  # Base score
-        
-        # Check duration
-        if self.config['min_duration'] <= duration <= self.config['max_duration']:
-            if abs(duration - self.config['optimal_duration']) < 15:
-                score += 0.2  # Close to optimal
-            else:
-                score += 0.1
-        
-        # Check personalization
-        if len(personalization_elements) >= self.config['quality_thresholds']['min_personalization']:
-            score += 0.2
-        
-        # Check conversational tone (contractions)
-        contractions = ["we're", "you'll", "won't", "it's", "that's", "we've"]
-        if any(cont in script.lower() for cont in contractions):
-            score += 0.1
-        
-        # Check sentence length
-        sentences = script.split('.')
-        avg_length = sum(len(s.split()) for s in sentences) / len(sentences) if sentences else 0
-        if avg_length <= self.config['quality_thresholds']['optimal_sentence_length']:
-            score += 0.1
-        
-        # Bonus for natural speech patterns
-        if '...' in script:  # Has pauses
-            score += 0.05
-        
-        return min(1.0, score)
-    
-    def _generate_fallback(self, shared_context: SharedContext) -> VoiceResult:
-        """Generate fallback voice note when AI fails"""
+    def _generate_fallback_script(self, shared_context: SharedContext) -> VoiceResult:
+        """Generate fallback script when AI is not available"""
         
         customer = shared_context.customer_data
-        name = customer.get('name', 'there').split()[0]
+        insights = shared_context.customer_insights
+        language = customer.get('preferred_language', 'English')
+        name = customer.get('name', 'Customer').split()[0]
         
-        script = f"""Hi {name}, this is Sarah from Lloyds Bank. 
-
-I'm calling with an important update about your account. We've sent you a letter with all the details, but I wanted to make sure you got the message.
-
-{shared_context.original_letter[:100]}...
-
-Please check your mail for the full information. If you have any questions or need to discuss this, just give us a call back on 0345 300 0000.
-
-Thanks for being with Lloyds, {name}. Have a great day!"""
+        # Extract key message from letter
+        letter_sentences = shared_context.original_letter.split('.')
+        key_message = '. '.join(letter_sentences[:2]).strip()
         
+        # Clean up template markers
+        key_message = re.sub(r'\[.*?\]', '', key_message)
+        key_message = re.sub(r'Dear.*?,\s*', '', key_message, count=1)
+        
+        # Build script based on language
+        scripts = {
+            'English': f"""Hello {name}, this is Sarah from Lloyds Bank.
+
+I'm calling with an important update about your account. {key_message}.
+
+We've sent you a letter with all the details, but wanted to make sure you received this important information.
+
+If you have any questions, please call us back on 0345 300 0000. Thank you for banking with Lloyds.""",
+            
+            'Spanish': f"""Hola {name}, soy Sarah del Banco Lloyds.
+
+Le llamo con una actualización importante sobre su cuenta. {key_message}.
+
+Le hemos enviado una carta con todos los detalles, pero queríamos asegurarnos de que recibiera esta información importante.
+
+Si tiene alguna pregunta, por favor llámenos al 0345 300 0000. Gracias por confiar en Lloyds.""",
+            
+            'French': f"""Bonjour {name}, c'est Sarah de la Banque Lloyds.
+
+Je vous appelle avec une mise à jour importante concernant votre compte. {key_message}.
+
+Nous vous avons envoyé une lettre avec tous les détails, mais nous voulions nous assurer que vous receviez cette information importante.
+
+Si vous avez des questions, veuillez nous rappeler au 0345 300 0000. Merci de faire confiance à Lloyds.""",
+            
+            'Chinese': f"""您好 {name}，我是劳埃德银行的Sarah。
+
+我打电话是要告诉您关于您账户的重要更新。{key_message}。
+
+我们已经寄给您一封包含所有详细信息的信件，但想确保您收到这个重要信息。
+
+如有任何问题，请致电0345 300 0000。感谢您选择劳埃德银行。"""
+        }
+        
+        script = scripts.get(language, scripts['English'])
+        
+        return self._create_voice_result(
+            {
+                'script': script,
+                'personalization_used': ['customer_name', 'key_message'],
+                'tone': 'friendly',
+                'emphasis_words': ['important', 'importante', 'important', '重要']
+            },
+            language,
+            "fallback"
+        )
+    
+    def _parse_ai_response(self, content: str) -> Optional[Dict]:
+        """Parse the JSON response from Claude"""
+        try:
+            # Remove markdown if present
+            content = content.replace('```json', '').replace('```', '').strip()
+            
+            # Try to find JSON
+            if '{' in content and '}' in content:
+                start = content.index('{')
+                end = content.rindex('}') + 1
+                json_str = content[start:end]
+                return json.loads(json_str)
+        except Exception as e:
+            print(f"   Failed to parse JSON: {e}")
+        return None
+    
+    def _create_voice_result(self, data: Dict, language: str, method: str) -> VoiceResult:
+        """Create VoiceResult from parsed data"""
+        
+        script = data.get('script', '')
         word_count = len(script.split())
-        duration = (word_count / 150) * 60
+        duration = (word_count / 150) * 60  # seconds
+        
+        # Calculate quality score
+        quality = 0.5  # Base
+        if method == "ai_generation":
+            quality += 0.3
+        if len(data.get('personalization_used', [])) > 2:
+            quality += 0.1
+        if language != 'English':  # Bonus for handling other languages
+            quality += 0.1
         
         return VoiceResult(
             content=script,
             duration_estimate=duration,
             word_count=word_count,
             speaking_pace='normal',
-            tone_markers=['friendly', 'informative'],
-            personalization_elements=['customer_name'],
-            natural_pauses=[20, 40],
-            emphasis_words=['important'],
-            language='English',
-            generation_method='fallback',
-            processing_time=0.0,
-            quality_score=0.5,
-            requires_callback=False
-        )
-    
-    def _generate_simulation(self, shared_context: SharedContext) -> VoiceResult:
-        """Generate simulation voice note"""
-        
-        customer = shared_context.customer_data
-        name = customer.get('name', 'Customer')
-        
-        script = f"""[SIMULATED VOICE NOTE]
-        
-Hi {name}, this is a test voice message from Lloyds.
-
-Segment: {shared_context.customer_insights.segment}
-Personalization: {shared_context.personalization_strategy.level.value}
-
-[Voice script would be generated here]
-
-Thanks for listening!"""
-        
-        return VoiceResult(
-            content=script,
-            duration_estimate=30.0,
-            word_count=len(script.split()),
-            speaking_pace='normal',
-            tone_markers=['test'],
-            personalization_elements=['simulation'],
+            tone_markers=[data.get('tone', 'friendly')],
+            personalization_elements=data.get('personalization_used', []),
             natural_pauses=[],
-            emphasis_words=[],
-            language='English',
-            generation_method='simulation',
+            emphasis_words=data.get('emphasis_words', []),
+            language=language,
+            generation_method=method,
             processing_time=0.0,
-            quality_score=0.8,
-            requires_callback=False
+            quality_score=min(1.0, quality),
+            requires_callback=True
         )
     
-    def _create_disabled_result(self, shared_context: SharedContext, reason: str) -> VoiceResult:
-        """Create result when voice is disabled"""
+    def _generate_audio_with_openai(self, script: str, customer_name: str, 
+                                   language: str, segment: str) -> Optional[str]:
+        """Generate audio file using OpenAI TTS"""
+        
+        if not self.openai_client:
+            return None
+        
+        try:
+            # Select voice based on language and segment
+            voice_map = self.VOICE_CONFIG['openai_voices'].get(language, {})
+            
+            # Choose tone based on segment
+            if segment == 'DIGITAL':
+                tone = 'friendly'
+            elif segment == 'TRADITIONAL':
+                tone = 'professional'
+            else:
+                tone = 'warm'
+            
+            voice = voice_map.get(tone, 'nova')
+            
+            print(f"   🎵 Generating audio with OpenAI TTS (voice: {voice})...")
+            
+            # Generate speech
+            response = self.openai_client.audio.speech.create(
+                model="tts-1",  # or "tts-1-hd" for better quality
+                voice=voice,
+                input=script
+            )
+            
+            # Save to file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            customer_id = customer_name.replace(' ', '_')
+            filename = f"{customer_id}_{language}_{timestamp}.mp3"
+            file_path = self.voice_notes_dir / filename
+            
+            response.stream_to_file(str(file_path))
+            
+            print(f"   ✅ Audio saved: {file_path}")
+            return str(file_path)
+            
+        except Exception as e:
+            print(f"   ❌ OpenAI TTS error: {e}")
+            return None
+    
+    def _create_disabled_result(self, shared_context: SharedContext) -> VoiceResult:
+        """Create empty result when voice is disabled"""
         return VoiceResult(
             content="",
             duration_estimate=0.0,
@@ -521,49 +490,54 @@ Thanks for listening!"""
             personalization_elements=[],
             natural_pauses=[],
             emphasis_words=[],
-            language='English',
+            language=shared_context.customer_data.get('preferred_language', 'English'),
             generation_method='disabled',
             processing_time=0.0,
             quality_score=0.0,
             requires_callback=False
         )
     
-    def validate_voice_note(self, voice_result: VoiceResult, shared_context: SharedContext) -> Dict[str, Any]:
-        """Validate voice note meets requirements"""
+    def validate_voice_note(self, result: VoiceResult, shared_context: SharedContext) -> Dict[str, Any]:
+        """Validate the generated voice note"""
         
         validation = {
             'is_valid': True,
-            'quality_score': voice_result.quality_score,
+            'quality_score': result.quality_score,
             'issues': [],
             'achievements': [],
             'metrics': {
-                'duration': f"{voice_result.duration_estimate:.1f}s",
-                'word_count': voice_result.word_count,
-                'speaking_pace': voice_result.speaking_pace,
-                'requires_callback': voice_result.requires_callback
+                'duration': f"{result.duration_estimate:.1f}s",
+                'word_count': result.word_count,
+                'language': result.language,
+                'has_audio': result.audio_file_path is not None
             }
         }
         
         # Check duration
-        if voice_result.duration_estimate < self.config['min_duration']:
-            validation['issues'].append("Too short for voice note")
-        elif voice_result.duration_estimate > self.config['max_duration']:
-            validation['issues'].append("Too long - consider breaking up")
+        if result.duration_estimate < self.VOICE_CONFIG['min_duration']:
+            validation['issues'].append("Too short")
+        elif result.duration_estimate > self.VOICE_CONFIG['max_duration']:
+            validation['issues'].append("Too long")
         else:
-            validation['achievements'].append(f"Good length: {voice_result.duration_estimate:.0f}s")
+            validation['achievements'].append(f"Good duration: {result.duration_estimate:.0f}s")
         
-        # Check personalization
-        if len(voice_result.personalization_elements) >= self.config['quality_thresholds']['min_personalization']:
-            validation['achievements'].append("Well personalized for voice")
+        # Check language
+        expected_lang = shared_context.customer_data.get('preferred_language', 'English')
+        if result.language == expected_lang:
+            validation['achievements'].append(f"Correct language: {expected_lang}")
+        else:
+            validation['issues'].append(f"Language mismatch")
         
-        # Check natural speech
-        if voice_result.tone_markers:
-            validation['achievements'].append(f"Natural tone: {', '.join(voice_result.tone_markers[:2])}")
+        # Check audio
+        if result.audio_file_path:
+            validation['achievements'].append("Audio file generated")
         
         return validation
 
 # Convenience function
-def generate_smart_voice_note(shared_context: SharedContext, api_key: Optional[str] = None) -> VoiceResult:
-    """Generate a smart voice note from shared context"""
-    generator = SmartVoiceGenerator(api_key=api_key)
+def generate_smart_voice_note(shared_context: SharedContext, 
+                             claude_key: Optional[str] = None,
+                             openai_key: Optional[str] = None) -> VoiceResult:
+    """Generate a voice note from shared context"""
+    generator = SmartVoiceGenerator(claude_key, openai_key)
     return generator.generate_voice_note(shared_context)

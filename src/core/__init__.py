@@ -1,4 +1,4 @@
-"""Package initialization - Updated with Smart SMS Generator"""
+"""Package initialization - Updated with Enhanced Voice Generator"""
 
 # Import the NEW Shared Brain
 from .shared_brain import SharedBrain, SharedContext, CustomerInsights, PersonalizationStrategy, PersonalizationLevel
@@ -6,11 +6,14 @@ from .shared_brain import SharedBrain, SharedContext, CustomerInsights, Personal
 # Import Smart Email Generator
 from .smart_email_generator import SmartEmailGenerator, EmailResult, generate_smart_email
 
-# Import Smart SMS Generator (NEW - replacing old orchestrator)
+# Import Smart SMS Generator
 from .smart_sms_generator import SmartSMSGenerator, SMSResult, generate_smart_sms
 
-# Import Smart Letter Generator (NEW)
+# Import Smart Letter Generator
 from .smart_letter_generator import SmartLetterGenerator, LetterResult, generate_smart_letter
+
+# Import Enhanced Voice Generator with Audio Support
+from .voice_note_generator_enhanced import SmartVoiceGenerator, VoiceResult, generate_smart_voice_note
 
 # Import your existing working components
 from .content_validator import ContentValidator, PointImportance, KeyPoint, validate_personalization
@@ -24,14 +27,21 @@ try:
 except ImportError:
     pass
 
-# Import voice integration (if available)
-try:
-    from .voice_note_generator import VoiceNoteGenerator
-except ImportError:
-    pass
-
 # Import input cleaner (if available)
 try:
     from .input_cleaner import InputCleaner, CleanedContent, clean_letter_content
 except ImportError:
     pass
+
+# Make all components easily accessible
+__all__ = [
+    'SharedBrain', 'SharedContext', 'CustomerInsights', 'PersonalizationStrategy', 'PersonalizationLevel',
+    'SmartEmailGenerator', 'EmailResult', 'generate_smart_email',
+    'SmartSMSGenerator', 'SMSResult', 'generate_smart_sms',
+    'SmartLetterGenerator', 'LetterResult', 'generate_smart_letter',
+    'SmartVoiceGenerator', 'VoiceResult', 'generate_smart_voice_note',
+    'ContentValidator', 'PointImportance', 'KeyPoint', 'validate_personalization',
+    'AIDocumentClassifier', 'ClassificationResult', 'DocumentType', 'classify_document',
+    'RulesEngine', 'Rule', 'RuleOperator', 'RuleAction',
+    'PersonalizationEngine', 'create_personalization_engine', 'personalize_for_customer'
+]

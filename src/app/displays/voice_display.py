@@ -1,273 +1,335 @@
 """
-Voice Note Display Module - Handles all voice note result display logic
+Voice Note Display Module - Shows voice notes with audio player
+Integrates with Streamlit to display and play voice notes
 """
 
 import streamlit as st
-from typing import Any, Dict, Tuple
+from pathlib import Path
+from typing import Dict, Any, Optional
+import base64
 from datetime import datetime
-from .base_display import BaseChannelDisplay
+
+# Import the base display class
+try:
+    from src.display.base_display import BaseChannelDisplay
+except ImportError:
+    # If base display doesn't exist, create a simple version
+    class BaseChannelDisplay:
+        def display_header(self, title: str, icon: str = ""):
+            st.subheader(f"{icon} {title}")
+        
+        def display_metric(self, label: str, value: Any):
+            st.metric(label, value)
+
+# Import voice result type
+try:
+    from src.core.voice_note_generator_enhanced import VoiceResult
+except ImportError:
+    from dataclasses import dataclass
+    from typing import List
+    
+    @dataclass
+    class VoiceResult:
+        content: str
+        duration_estimate: float
+        word_count: int
+        speaking_pace: str
+        tone_markers: List[str]
+        personalization_elements: List[str]
+        emphasis_words: List[str]
+        language: str
+        generation_method: str
+        processing_time: float
+        quality_score: float
+        audio_file_path: Optional[str] = None
+        audio_format: str = "mp3"
+        tts_engine_used: str = "none"
 
 class VoiceDisplay(BaseChannelDisplay):
-    """Display handler for voice note results"""
+    """Display component for voice notes with audio player"""
     
     def __init__(self):
-        super().__init__("Voice Note", "🎙️")
-        self.style = """
-        <style>
-        .voice-showcase {
-            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
-            border: 2px solid #9c27b0;
-            border-radius: 10px;
-            padding: 2rem;
-            margin: 1rem 0;
-        }
-        
-        .voice-player {
-            background: #2d2d2d;
-            border-radius: 25px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 500px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        
-        .voice-waveform {
-            height: 60px;
-            background: linear-gradient(90deg, #9c27b0 0%, #673ab7 50%, #9c27b0 100%);
-            border-radius: 30px;
-            margin: 15px 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .voice-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            margin-top: 15px;
-        }
-        
-        .play-button {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: #9c27b0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .play-button:hover {
-            background: #7b1fa2;
-            transform: scale(1.1);
-        }
-        
-        .voice-script {
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            line-height: 1.8;
-        }
-        
-        .voice-emphasis {
-            color: #9c27b0;
-            font-weight: bold;
-        }
-        
-        .voice-pause {
-            color: #999;
-            font-style: italic;
-        }
-        </style>
-        """
+        super().__init__()
+        self.channel_name = "Voice Note"
+        self.channel_icon = "🎙️"
     
-    def display_result(self, result: Any, shared_context: Any) -> None:
-        """Display the voice note result with audio player mockup"""
+    def display(self, result: VoiceResult, shared_context: Any, validation: Optional[Dict] = None):
+        """Display voice note with audio player"""
         
-        if not result:
-            st.error("❌ No voice note result available")
-            return
+        # Header
+        self.display_header(f"{self.channel_icon} Voice Note", self.channel_icon)
         
-        try:
-            # Apply custom styling
-            st.markdown(self.style, unsafe_allow_html=True)
-            
-            st.markdown('<div class="voice-showcase">', unsafe_allow_html=True)
-            st.markdown(f"### {self.icon} Smart Voice Note Result")
-            
-            # Display metrics
-            self._display_voice_metrics(result)
-            
-            # Display audio player mockup
-            self._display_voice_player(result)
-            
-            # Display script with markup
-            self._display_voice_script(result)
-            
-            # Display voice characteristics
-            self._display_voice_characteristics(result)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"Error displaying voice result: {e}")
-    
-    def _display_voice_metrics(self, result: Any) -> None:
-        """Display voice-specific metrics"""
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
+        # Status badges
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            duration = getattr(result, 'duration_estimate', 0)
-            st.metric("Duration", f"{duration:.0f}s")
+            if result.generation_method == 'disabled':
+                st.error("❌ Disabled")
+            elif result.audio_file_path:
+                st.success("✅ Generated")
+            else:
+                st.warning("⚠️ Script Only")
         
         with col2:
-            word_count = getattr(result, 'word_count', 0)
-            st.metric("Words", word_count)
+            st.info(f"🌍 {result.language}")
         
         with col3:
-            pace = getattr(result, 'speaking_pace', 'normal').title()
-            st.metric("Pace", pace)
+            if result.duration_estimate > 0:
+                st.metric("Duration", f"{result.duration_estimate:.1f}s")
         
         with col4:
-            quality = getattr(result, 'quality_score', 0)
-            st.metric("Quality", f"{quality:.1%}")
+            if result.quality_score > 0:
+                quality_pct = result.quality_score * 100
+                if quality_pct >= 80:
+                    st.success(f"Quality: {quality_pct:.0f}%")
+                elif quality_pct >= 60:
+                    st.warning(f"Quality: {quality_pct:.0f}%")
+                else:
+                    st.error(f"Quality: {quality_pct:.0f}%")
         
-        with col5:
-            callback = getattr(result, 'requires_callback', False)
-            st.metric("Callback", "Yes" if callback else "No")
+        if result.generation_method == 'disabled':
+            st.info("Voice note disabled by communication rules")
+            return
+        
+        # Audio Player Section
+        if result.audio_file_path:
+            st.markdown("### 🎵 Audio Player")
+            
+            # Check if file exists
+            audio_path = Path(result.audio_file_path)
+            if audio_path.exists():
+                # Create audio player
+                try:
+                    # Read audio file
+                    with open(audio_path, 'rb') as audio_file:
+                        audio_bytes = audio_file.read()
+                    
+                    # Display audio player
+                    st.audio(audio_bytes, format=f'audio/{result.audio_format}')
+                    
+                    # Download button
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            label="📥 Download Audio",
+                            data=audio_bytes,
+                            file_name=audio_path.name,
+                            mime=f'audio/{result.audio_format}'
+                        )
+                    
+                    with col2:
+                        st.info(f"🎙️ Engine: {result.tts_engine_used}")
+                    
+                except Exception as e:
+                    st.error(f"Error loading audio: {e}")
+            else:
+                st.warning(f"Audio file not found: {audio_path}")
+                st.info("Showing script only")
+        else:
+            st.info("🔇 No audio generated - Showing script only")
+        
+        # Script Section
+        st.markdown("### 📝 Voice Script")
+        
+        # Language indicator
+        if result.language != 'English':
+            st.info(f"Script in {result.language}")
+        
+        # Display script with formatting
+        if result.content:
+            # Create a nice box for the script
+            script_html = f"""
+            <div style="
+                background-color: #f0f2f6;
+                border-left: 4px solid #1f77b4;
+                padding: 20px;
+                border-radius: 5px;
+                margin: 10px 0;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 16px;
+                line-height: 1.6;
+            ">
+                <div style="color: #333; white-space: pre-wrap;">{self._format_script(result.content, result.emphasis_words)}</div>
+            </div>
+            """
+            st.markdown(script_html, unsafe_allow_html=True)
+            
+            # Word count and reading time
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📊 Word Count", result.word_count)
+            with col2:
+                st.metric("⏱️ Speaking Pace", result.speaking_pace.title())
+            with col3:
+                st.metric("🎯 Est. Duration", f"{result.duration_estimate:.1f}s")
+        else:
+            st.warning("No script generated")
+        
+        # Technical Details (collapsible)
+        with st.expander("🔧 Technical Details"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Generation Info:**")
+                st.text(f"Method: {result.generation_method}")
+                st.text(f"Processing: {result.processing_time:.2f}s")
+                if result.tts_engine_used != "none":
+                    st.text(f"TTS: {result.tts_engine_used}")
+            
+            with col2:
+                st.markdown("**Content Analysis:**")
+                if result.tone_markers:
+                    st.text(f"Tone: {', '.join(result.tone_markers)}")
+                if result.emphasis_words:
+                    st.text(f"Emphasis: {', '.join(result.emphasis_words[:5])}")
+        
+        # Personalization Elements
+        if result.personalization_elements:
+            with st.expander(f"✨ Personalization ({len(result.personalization_elements)} elements)"):
+                for element in result.personalization_elements:
+                    st.write(f"• {element}")
+        
+        # Validation Results
+        if validation:
+            with st.expander("✅ Validation Results"):
+                if validation.get('is_valid'):
+                    st.success("Voice note passed all validation checks")
+                else:
+                    st.error("Voice note has validation issues")
+                
+                if validation.get('achievements'):
+                    st.markdown("**Achievements:**")
+                    for achievement in validation['achievements']:
+                        st.write(f"✅ {achievement}")
+                
+                if validation.get('issues'):
+                    st.markdown("**Issues:**")
+                    for issue in validation['issues']:
+                        st.write(f"⚠️ {issue}")
+                
+                if validation.get('metrics'):
+                    st.markdown("**Metrics:**")
+                    st.json(validation['metrics'])
     
-    def _display_voice_player(self, result: Any) -> None:
-        """Display a mock audio player interface"""
-        duration = getattr(result, 'duration_estimate', 30)
+    def _format_script(self, script: str, emphasis_words: list) -> str:
+        """Format script with emphasis highlighting"""
+        formatted = script
         
-        st.markdown(f"""
-        <div class="voice-player">
-            <div style="color: white; text-align: center; margin-bottom: 10px;">
-                🎙️ Voice Message Preview
-            </div>
-            <div class="voice-waveform"></div>
-            <div style="color: #aaa; text-align: center; font-size: 14px;">
-                0:00 / {int(duration//60)}:{int(duration%60):02d}
-            </div>
-            <div class="voice-controls">
-                <div class="play-button">
-                    <span style="color: white; font-size: 24px;">▶️</span>
-                </div>
-            </div>
-            <div style="color: #aaa; text-align: center; margin-top: 10px; font-size: 12px;">
-                Click to preview (simulation mode)
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    def _display_voice_script(self, result: Any) -> None:
-        """Display the voice script with emphasis and pauses marked"""
-        script = getattr(result, 'content', 'No script available')
-        emphasis_words = getattr(result, 'emphasis_words', [])
-        
-        # Mark up emphasis words
-        marked_script = script
+        # Highlight emphasis words
         for word in emphasis_words:
-            marked_script = marked_script.replace(
+            formatted = formatted.replace(
                 word, 
-                f'<span class="voice-emphasis">{word}</span>'
+                f'<strong style="color: #1f77b4; background-color: #e8f4f8; padding: 2px 4px; border-radius: 3px;">{word}</strong>'
             )
         
-        # Mark up pauses
-        marked_script = marked_script.replace(
-            '...', 
-            '<span class="voice-pause">[pause]</span>'
-        )
+        # Replace pauses with visual indicators
+        formatted = formatted.replace('...', '<em style="color: #666;">... [pause] ...</em>')
         
-        st.markdown("**🎯 Voice Script:**")
-        st.markdown(f'<div class="voice-script">{marked_script}</div>', unsafe_allow_html=True)
+        return formatted
     
-    def _display_voice_characteristics(self, result: Any) -> None:
-        """Display voice characteristics and personalization"""
+    def display_analytics(self, results: list):
+        """Display analytics for multiple voice notes"""
+        st.markdown("### 📊 Voice Note Analytics")
+        
+        if not results:
+            st.info("No voice notes generated yet")
+            return
+        
+        # Calculate stats
+        total = len(results)
+        with_audio = sum(1 for r in results if r.audio_file_path)
+        avg_duration = sum(r.duration_estimate for r in results) / total if total > 0 else 0
+        languages = {}
+        for r in results:
+            languages[r.language] = languages.get(r.language, 0) + 1
+        
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Voice Notes", total)
+        
+        with col2:
+            st.metric("With Audio", f"{with_audio}/{total}")
+        
+        with col3:
+            st.metric("Avg Duration", f"{avg_duration:.1f}s")
+        
+        with col4:
+            st.metric("Languages", len(languages))
+        
+        # Language breakdown
+        if languages:
+            st.markdown("**Language Distribution:**")
+            for lang, count in sorted(languages.items(), key=lambda x: x[1], reverse=True):
+                percentage = (count / total) * 100
+                st.progress(percentage / 100)
+                st.text(f"{lang}: {count} ({percentage:.1f}%)")
+        
+        # Quality distribution
+        quality_scores = [r.quality_score for r in results if r.quality_score > 0]
+        if quality_scores:
+            avg_quality = sum(quality_scores) / len(quality_scores)
+            
+            st.markdown("**Quality Metrics:**")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Avg Quality", f"{avg_quality*100:.1f}%")
+            
+            with col2:
+                high_quality = sum(1 for s in quality_scores if s >= 0.8)
+                st.metric("High Quality", f"{high_quality}/{len(quality_scores)}")
+            
+            with col3:
+                low_quality = sum(1 for s in quality_scores if s < 0.6)
+                if low_quality > 0:
+                    st.warning(f"Low Quality: {low_quality}")
+                else:
+                    st.success("No Low Quality")
+    
+    def display_comparison(self, result1: VoiceResult, result2: VoiceResult):
+        """Compare two voice notes side by side"""
+        st.markdown("### 🔄 Voice Note Comparison")
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            tone_markers = getattr(result, 'tone_markers', [])
-            if tone_markers:
-                st.markdown("**🎭 Voice Tone:**")
-                for tone in tone_markers[:3]:
-                    st.write(f"• {tone.title()}")
+            st.markdown("**Voice Note 1**")
+            self._display_summary(result1)
         
         with col2:
-            personalization = getattr(result, 'personalization_elements', [])
-            if personalization:
-                st.markdown("**🎯 Personalization:**")
-                for element in personalization[:3]:
-                    st.write(f"• {element}")
-        
-        # Natural pauses and emphasis
-        with st.expander("🎵 Speech Patterns", expanded=False):
-            natural_pauses = getattr(result, 'natural_pauses', [])
-            if natural_pauses:
-                st.write(f"**Natural pauses at words:** {', '.join(map(str, natural_pauses[:5]))}")
-            
-            emphasis_words = getattr(result, 'emphasis_words', [])
-            if emphasis_words:
-                st.write(f"**Emphasized words:** {', '.join(emphasis_words[:5])}")
-            
-            pace = getattr(result, 'speaking_pace', 'normal')
-            st.write(f"**Speaking pace:** {pace}")
+            st.markdown("**Voice Note 2**")
+            self._display_summary(result2)
     
-    def validate_result(self, result: Any, shared_context: Any) -> Dict[str, Any]:
-        """Validate voice note result"""
+    def _display_summary(self, result: VoiceResult):
+        """Display summary of a voice note"""
+        if result.generation_method == 'disabled':
+            st.error("Disabled")
+            return
         
-        # Try to use the voice generator's validation if available
-        try:
-            from src.core.smart_voice_generator import SmartVoiceGenerator
-            generator = SmartVoiceGenerator()
-            return generator.validate_voice_note(result, shared_context)
-        except:
-            # Fallback validation
-            return {
-                'is_valid': True,
-                'quality_score': getattr(result, 'quality_score', 0),
-                'issues': [],
-                'achievements': [
-                    f"Duration: {getattr(result, 'duration_estimate', 0):.0f} seconds",
-                    f"Pace: {getattr(result, 'speaking_pace', 'normal')}"
-                ],
-                'metrics': {
-                    'duration': f"{getattr(result, 'duration_estimate', 0):.1f}s",
-                    'word_count': getattr(result, 'word_count', 0),
-                    'personalization_elements': len(getattr(result, 'personalization_elements', [])),
-                    'requires_callback': getattr(result, 'requires_callback', False)
-                }
-            }
-    
-    def get_download_data(self, result: Any, customer_name: str) -> Tuple[str, str, str]:
-        """Get download data for voice script"""
-        content = getattr(result, 'content', '')
+        st.info(f"Language: {result.language}")
+        st.text(f"Duration: {result.duration_estimate:.1f}s")
+        st.text(f"Words: {result.word_count}")
+        st.text(f"Quality: {result.quality_score*100:.0f}%")
         
-        if not content:
-            return "", "", ""
+        if result.audio_file_path:
+            st.success("✅ Has Audio")
+        else:
+            st.warning("📝 Script Only")
         
-        # Format for download
-        download_content = f"""VOICE NOTE SCRIPT
-Customer: {customer_name}
-Duration: {getattr(result, 'duration_estimate', 0):.0f} seconds
-Pace: {getattr(result, 'speaking_pace', 'normal')}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+        # Show first few words of script
+        if result.content:
+            preview = result.content[:100] + "..." if len(result.content) > 100 else result.content
+            st.text_area("Preview:", preview, height=100, disabled=True)
 
-SCRIPT:
-{content}
 
-TONE MARKERS: {', '.join(getattr(result, 'tone_markers', []))}
-EMPHASIS WORDS: {', '.join(getattr(result, 'emphasis_words', []))}
-"""
-        
-        customer_filename = customer_name.replace(' ', '_') if customer_name else 'customer'
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"voice_script_{customer_filename}_{timestamp}.txt"
-        
-        return download_content, filename, "text/plain"
+def create_voice_display() -> VoiceDisplay:
+    """Factory function to create voice display"""
+    return VoiceDisplay()
+
+
+# Standalone display function for testing
+def display_voice_note(result: VoiceResult, shared_context: Any = None, validation: Dict = None):
+    """Display a voice note result"""
+    display = VoiceDisplay()
+    display.display(result, shared_context, validation)
