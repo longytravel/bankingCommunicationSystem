@@ -1,2 +1,2 @@
-﻿libjpeg-dev
+libjpeg-dev
 libpng-dev
