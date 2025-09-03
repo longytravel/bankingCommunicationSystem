@@ -206,100 +206,109 @@ class SharedBrain:
             letter_content
         )
         
-        # STEP 6: Channel Decisions WITH VOICE
+# STEP 6: Channel Decisions WITH VOICE
         print("  📺 Making channel decisions (including voice)...")
         
-        # Extract document classification values safely
-        doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
-        urgency = document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM')
-        action_required = document_classification.customer_action_required if hasattr(document_classification, 'customer_action_required') else document_classification.get('customer_action_required', False)
-        
-        # Make channel decisions with voice logic
-        channel_decisions = {
-            'enabled_channels': {
-                'email': True,
-                'sms': customer_insights.segment == 'DIGITAL',
-                'letter': customer_insights.segment in ['TRADITIONAL', 'ASSISTED'],
-                'voice': False  # Default to false, will enable based on conditions
+        # Build comprehensive context for rules evaluation
+        rules_context = {
+            'customer': customer_data,
+            'document': {
+                'type': document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL'),
+                'urgency': document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM'),
+                'compliance_required': document_classification.compliance_required if hasattr(document_classification, 'compliance_required') else document_classification.get('compliance_required', False),
+                'customer_action_required': document_classification.customer_action_required if hasattr(document_classification, 'customer_action_required') else document_classification.get('customer_action_required', False)
             },
-            'reasons': {
-                'email': 'Default channel for all customers',
-                'sms': 'Quick channel for digital customers' if customer_insights.segment == 'DIGITAL' else 'Not preferred for this segment',
-                'letter': 'Formal channel for traditional customers' if customer_insights.segment in ['TRADITIONAL', 'ASSISTED'] else 'Not needed for digital-first',
-                'voice': 'Not required'  # Default reason
+            'insights': {
+                'segment': customer_insights.segment,
+                'life_stage': customer_insights.life_stage,
+                'digital_persona': customer_insights.digital_persona,
+                'financial_profile': customer_insights.financial_profile,
+                'special_factors': customer_insights.special_factors
             }
         }
         
-        # VOICE CHANNEL LOGIC - Segment-based decisions
-        if customer_insights.segment == 'DIGITAL':
-            # Digital customers get voice for urgent matters
-            if urgency == 'HIGH' or action_required:
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Urgent/action required - voice follow-up ensures message received'
-            elif doc_type == 'REGULATORY':
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Regulatory message - voice ensures understanding'
-                
-        elif customer_insights.segment == 'ASSISTED':
-            # Assisted customers get voice for personal touch
-            if customer_insights.life_stage in ['retiring', 'retired', 'elderly']:
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Personal touch for retiring/elderly customers'
-            elif urgency in ['HIGH', 'MEDIUM']:
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Important message for assisted customer'
-                
-        elif customer_insights.segment == 'TRADITIONAL':
-            # Traditional customers get voice for vulnerability support
-            if customer_insights.special_factors:
-                factors_str = ' '.join(str(f).lower() for f in customer_insights.special_factors)
-                vulnerability_keywords = ['vulnerable', 'elderly', 'health', 'bereaved', 'disability', 'accessibility']
-                
-                if any(keyword in factors_str for keyword in vulnerability_keywords):
-                    channel_decisions['enabled_channels']['voice'] = True
-                    channel_decisions['reasons']['voice'] = 'Personal support for vulnerable customer circumstances'
-            elif urgency == 'HIGH':
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Urgent message requiring personal touch'
+        # Initialize channel decisions
+        channel_decisions = {
+            'enabled_channels': {
+                'email': False,
+                'sms': False,
+                'letter': False,
+                'voice': False
+            },
+            'reasons': {
+                'email': 'Not evaluated',
+                'sms': 'Not evaluated',
+                'letter': 'Not evaluated',
+                'voice': 'Not evaluated'
+            }
+        }
         
-        # Document type overrides for voice
-        if doc_type == 'URGENT':
-            channel_decisions['enabled_channels']['voice'] = True
-            channel_decisions['enabled_channels']['sms'] = True
-            channel_decisions['reasons']['voice'] = 'Urgent classification requires immediate voice follow-up'
-            channel_decisions['reasons']['sms'] = 'Urgent notification required'
+        # Use rules engine to determine channel eligibility
+        if self.communication_rules:
+            print("    Using rules engine for channel decisions...")
             
-        if doc_type == 'REGULATORY':
-            channel_decisions['enabled_channels']['letter'] = True
-            if not channel_decisions['enabled_channels']['voice']:  # Only set if not already set
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Regulatory compliance - ensure message understood'
-            channel_decisions['reasons']['letter'] = 'Regulatory requirement for written notice'
-        
-        # Special vulnerability override for voice
-        if action_required and urgency in ['HIGH', 'MEDIUM']:
-            if not channel_decisions['enabled_channels']['voice']:
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Important action required - voice ensures receipt and understanding'
-        
-        # Check for vulnerable customer indicators
-        if customer_insights.special_factors:
-            factors_lower = [str(f).lower() for f in customer_insights.special_factors]
-            vulnerability_keywords = ['vulnerable', 'deceased', 'illness', 'hospital', 'bereaved', 'mental_health', 'disability']
+            # Evaluate all channel eligibility rules
+            channel_rules_result = self.communication_rules.evaluate(rules_context, tags=['channel_eligibility'])
             
-            if any(keyword in factor for factor in factors_lower for keyword in vulnerability_keywords):
-                channel_decisions['enabled_channels']['voice'] = True
-                channel_decisions['reasons']['voice'] = 'Enhanced support for customer with special circumstances'
-                # Maybe reduce other channels for sensitivity
-                if urgency != 'HIGH':  # Keep SMS for truly urgent
-                    channel_decisions['enabled_channels']['sms'] = False
-                    channel_decisions['reasons']['sms'] = 'Avoided due to sensitive circumstances'
+            # Process the features that were enabled/disabled
+            features = channel_rules_result.get('features', {})
+            
+            # Check each channel
+            for channel in ['email', 'sms', 'letter', 'voice_note']:
+                # Map voice_note to voice for consistency
+                channel_key = 'voice' if channel == 'voice_note' else channel
+                
+                if channel in features:
+                    channel_decisions['enabled_channels'][channel_key] = features[channel]
+                    
+                    # Get the reason from metadata
+                    metadata = channel_rules_result.get('metadata', {})
+                    if 'reason' in metadata and channel == 'voice_note':  # Voice note gets special reason
+                        channel_decisions['reasons'][channel_key] = metadata['reason']
+                    else:
+                        # Find triggered rules for this channel
+                        triggered_rules = channel_rules_result.get('triggered_rules', [])
+                        if triggered_rules:
+                            channel_decisions['reasons'][channel_key] = f"Enabled by rules: {', '.join(triggered_rules[:2])}"
+                        else:
+                            channel_decisions['reasons'][channel_key] = "Enabled by rules engine"
+            
+            # Store voice metadata if available
+            if 'voice_note' in features and features['voice_note']:
+                metadata = channel_rules_result.get('metadata', {})
+                if 'voice_style' in metadata:
+                    channel_decisions['voice_style'] = metadata['voice_style']
+                if 'voice_speed' in metadata:
+                    channel_decisions['voice_speed'] = metadata['voice_speed']
+            
+            print(f"    Rules evaluation complete. Triggered rules: {channel_rules_result.get('triggered_rules', [])}")
+            
+        else:
+            print("    ⚠️ No rules engine available - using fallback defaults")
+            # Fallback if no rules engine
+            channel_decisions['enabled_channels']['email'] = True
+            channel_decisions['reasons']['email'] = 'Default channel (no rules engine)'
+            
+            # Basic fallback logic
+            if customer_insights.segment == 'DIGITAL':
+                channel_decisions['enabled_channels']['sms'] = True
+                channel_decisions['reasons']['sms'] = 'Digital segment (fallback)'
+            
+            if customer_insights.segment in ['TRADITIONAL', 'ASSISTED']:
+                channel_decisions['enabled_channels']['letter'] = True
+                channel_decisions['reasons']['letter'] = 'Traditional/Assisted segment (fallback)'
         
-        # Force channels if requested
+        # Force channels if requested (override rules)
         if force_channels:
             for channel in force_channels:
                 channel_decisions['enabled_channels'][channel] = True
                 channel_decisions['reasons'][channel] = f"Forced by user request (original: {channel_decisions['reasons'].get(channel, 'N/A')})"
+        
+        # Log the final decisions
+        enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
+        print(f"    Final enabled channels: {enabled}")
+        for channel in enabled:
+            print(f"      - {channel}: {channel_decisions['reasons'][channel]}")
         
         # STEP 7: Calculate confidence and metadata
         processing_time = (datetime.now() - start_time).total_seconds()
