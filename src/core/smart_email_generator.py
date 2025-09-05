@@ -1,6 +1,6 @@
 """
-Smart Email Generator - Hallucination-Free Version
-Uses SharedContext for Consistent, Deeply Personalized Emails WITHOUT Fiction
+Smart Email Generator - Hallucination-Free Version (HOTFIX)
+FIXED: 'segment' is not defined error
 """
 
 import os
@@ -38,7 +38,6 @@ except ImportError:
     print("⚠️ Could not import SharedContext - make sure shared_brain.py is available")
 
 # ============== UNIVERSAL ANTI-HALLUCINATION CONSTRAINTS ==============
-# Same constraints as SharedBrain - must be consistent
 UNIVERSAL_CONSTRAINTS = """
 CRITICAL ANTI-HALLUCINATION RULES - APPLY TO EVERY EMAIL:
 
@@ -121,10 +120,10 @@ class SmartEmailGenerator:
             }
         },
         'personalization': {
-            'use_verified_facts_only': True,  # NEW: Only use verified data
-            'check_forbidden_list': True,     # NEW: Check what NOT to mention
-            'use_pattern_language': True,     # NEW: Use safe alternatives
-            'reference_data_gaps': False      # NEW: Don't mention what we don't know
+            'use_verified_facts_only': True,
+            'check_forbidden_list': True,
+            'use_pattern_language': True,
+            'reference_data_gaps': False
         },
         'greeting_styles': {
             'DIGITAL': {
@@ -169,7 +168,7 @@ Manage your preferences: lloydsbank.com/preferences
 """
         },
         'quality_thresholds': {
-            'min_personalization': 2,  # Reduced since we're being more careful
+            'min_personalization': 2,
             'min_content_preservation': 0.9,
             'readability_score': 60,
             'max_paragraphs': 8,
@@ -247,7 +246,7 @@ Manage your preferences: lloydsbank.com/preferences
         doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
         tone_adaptation = self.config.get('tone_adaptations', {}).get(doc_type.lower(), {})
         
-        # Build the SAFE email generation prompt
+        # Build the SAFE email generation prompt - PASS SEGMENT
         generation_prompt = self._build_safe_generation_prompt(
             shared_context.original_letter,
             customer,
@@ -256,14 +255,15 @@ Manage your preferences: lloydsbank.com/preferences
             content_strategy,
             greeting_config,
             tone_adaptation,
-            doc_type
+            doc_type,
+            segment  # FIXED: Pass segment parameter
         )
         
         try:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4000,
-                temperature=0.3,  # Lower temperature for more consistency
+                temperature=0.3,
                 messages=[{"role": "user", "content": generation_prompt}]
             )
             
@@ -288,7 +288,8 @@ Manage your preferences: lloydsbank.com/preferences
         content_strategy,
         greeting_config: Dict[str, Any],
         tone_adaptation: Dict[str, Any],
-        doc_type: str
+        doc_type: str,
+        segment: str  # FIXED: Added segment parameter
     ) -> str:
         """Build email generation prompt with STRONG anti-hallucination measures"""
         
@@ -319,6 +320,12 @@ Manage your preferences: lloydsbank.com/preferences
         else:
             greeting = greeting_config['greeting'].replace('{first_name}', 'Valued Customer')
         
+        # Get verified facts, data gaps, etc. with safe defaults
+        verified_facts = getattr(insights, 'verified_facts', [])
+        data_gaps = getattr(insights, 'data_gaps', [])
+        forbidden_specifics = getattr(strategy, 'forbidden_specifics', [])
+        pattern_language = getattr(strategy, 'pattern_language', {})
+        
         # Build the prompt with STRONG constraints
         prompt = f"""{UNIVERSAL_CONSTRAINTS}
 
@@ -328,18 +335,18 @@ ORIGINAL LETTER (preserve ALL information):
 {original_letter}
 
 VERIFIED CUSTOMER FACTS (ONLY use these for personalization):
-{chr(10).join(['• ' + fact for fact in insights.verified_facts]) if insights.verified_facts else '• Customer name: ' + customer.get('name', 'Unknown')}
+{chr(10).join(['• ' + fact for fact in verified_facts]) if verified_facts else '• Customer name: ' + customer.get('name', 'Unknown')}
 
 DATA WE DON'T HAVE (NEVER invent details about these):
-{chr(10).join(['• ' + gap for gap in insights.data_gaps]) if insights.data_gaps else '• No data gaps identified'}
+{chr(10).join(['• ' + gap for gap in data_gaps]) if data_gaps else '• No data gaps identified'}
 
 FORBIDDEN SPECIFICS (NEVER mention these):
-{chr(10).join(['• ' + item for item in strategy.forbidden_specifics]) if strategy.forbidden_specifics else '• No specific items forbidden'}
+{chr(10).join(['• ' + item for item in forbidden_specifics]) if forbidden_specifics else '• No specific items forbidden'}
 
 SAFE PATTERN LANGUAGE (use these for missing information):
-{chr(10).join([f'• Instead of {k}: use "{v}"' for k, v in strategy.pattern_language.items()]) if strategy.pattern_language else '• No pattern language defined'}
+{chr(10).join([f'• Instead of {k}: use "{v}"' for k, v in pattern_language.items()]) if pattern_language else '• No pattern language defined'}
 
-CUSTOMER SEGMENT: {insights.segment}
+CUSTOMER SEGMENT: {segment}
 LANGUAGE: {customer.get('preferred_language', 'English')}
 TONE: {greeting_config['tone']}
 
@@ -452,7 +459,8 @@ Write in {customer.get('preferred_language', 'English')}."""
         for phrase in dangerous_phrases:
             if phrase in content_lower:
                 # Check if this is actually in the verified facts
-                if not any(phrase in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+                verified_facts = getattr(shared_context.customer_insights, 'verified_facts', [])
+                if not any(phrase in fact.lower() for fact in verified_facts):
                     issues.append(f"Dangerous phrase detected: '{phrase}'")
         
         # Check for specific dates/times not in data
@@ -466,7 +474,8 @@ Write in {customer.get('preferred_language', 'English')}."""
         for pattern in date_patterns:
             if re.search(pattern, content_lower):
                 # Check if this date/time is in verified facts
-                if not any(re.search(pattern, fact.lower()) for fact in shared_context.customer_insights.verified_facts):
+                verified_facts = getattr(shared_context.customer_insights, 'verified_facts', [])
+                if not any(re.search(pattern, fact.lower()) for fact in verified_facts):
                     issues.append("Specific date/time not in verified data")
         
         # Log any issues found
@@ -550,9 +559,10 @@ Write in {customer.get('preferred_language', 'English')}."""
         # Check if we used verified facts
         if personalization_elements:
             # Check if personalizations are actually from verified facts
+            verified_facts = getattr(shared_context.customer_insights, 'verified_facts', [])
             verified = 0
             for element in personalization_elements:
-                if any(element.lower() in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+                if any(element.lower() in fact.lower() for fact in verified_facts):
                     verified += 1
             if verified > 0:
                 score += 0.1
@@ -584,10 +594,11 @@ Write in {customer.get('preferred_language', 'English')}."""
             greeting = "Dear Valued Customer"
         
         # Build SAFE email using only verified facts
+        verified_facts = getattr(insights, 'verified_facts', [])
         verified_refs = []
-        if insights.verified_facts:
+        if verified_facts:
             # Use only the most basic verified facts
-            for fact in insights.verified_facts[:2]:
+            for fact in verified_facts[:2]:
                 if 'balance' in fact.lower():
                     verified_refs.append("your account")
                 elif 'digital' in fact.lower():
@@ -629,6 +640,10 @@ If you have any questions, please don't hesitate to contact us at 0345 300 0000 
         
         name = customer.get('name', 'Customer')
         
+        # Safe defaults with getattr
+        verified_facts = getattr(insights, 'verified_facts', [])
+        data_gaps = getattr(insights, 'data_gaps', [])
+        
         simulation_content = f"""Dear {name},
 
 [SIMULATED HALLUCINATION-FREE EMAIL - {customer.get('preferred_language', 'English').upper()}]
@@ -637,10 +652,10 @@ Customer Segment: {insights.segment}
 Personalization Level: {shared_context.personalization_strategy.level.value}
 
 USING ONLY VERIFIED FACTS:
-{chr(10).join(['• ' + fact for fact in insights.verified_facts[:3]]) if insights.verified_facts else '• No verified facts available'}
+{chr(10).join(['• ' + fact for fact in verified_facts[:3]]) if verified_facts else '• No verified facts available'}
 
 AVOIDING THESE DATA GAPS:
-{chr(10).join(['• ' + gap for gap in insights.data_gaps[:3]]) if insights.data_gaps else '• No data gaps identified'}
+{chr(10).join(['• ' + gap for gap in data_gaps[:3]]) if data_gaps else '• No data gaps identified'}
 
 [Original letter content would appear here with personalization based ONLY on verified facts]
 
@@ -723,9 +738,10 @@ Lloyds Bank
             validation['achievements'].append(f"Applied {len(email_result.personalization_elements)} safe personalizations")
         
         # Check if personalizations are from verified facts
+        verified_facts = getattr(shared_context.customer_insights, 'verified_facts', [])
         verified_count = 0
         for element in email_result.personalization_elements:
-            if any(element.lower() in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+            if any(element.lower() in fact.lower() for fact in verified_facts):
                 verified_count += 1
         
         if verified_count > 0:
