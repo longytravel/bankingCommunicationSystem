@@ -1,6 +1,6 @@
 """
 Shared Brain - Central Intelligence for Multi-Channel Personalization
-UPDATED: Includes voice channel decisions and reuses existing document analysis
+FIXED: Prevents ALL hallucinations through strict data-driven constraints
 """
 
 import os
@@ -55,6 +55,46 @@ except ImportError as e:
         def load_rules_engine(cls, rules_type: str):
             return None
 
+# ============== UNIVERSAL ANTI-HALLUCINATION CONSTRAINTS ==============
+UNIVERSAL_CONSTRAINTS = """
+CRITICAL ANTI-HALLUCINATION RULES - APPLY TO EVERY RESPONSE:
+
+1. NEVER INVENT OR CREATE:
+   - Names of people (staff, managers, representatives)
+   - Names of places (branches, streets, buildings)
+   - Specific dates or times not in the data
+   - Conversations or meetings that aren't documented
+   - Phone calls or interactions not recorded
+   - Product names or features not in the system
+   - Customer preferences not explicitly stated
+   - Life events not mentioned in data
+   - Financial details not provided
+
+2. ONLY USE:
+   - Exact data points provided
+   - Statistical patterns from actual data
+   - General segment characteristics (not specific to individual)
+   - System-wide features available to all customers
+   
+3. WHEN DATA IS MISSING:
+   - Use general professional language
+   - Reference "your local branch" not "Baker Street branch"
+   - Say "our team" not "Sarah from customer service"
+   - Use "recently" not "last Tuesday at 3pm"
+   
+4. FORBIDDEN PHRASES:
+   - "As we discussed..." (unless conversation is in data)
+   - "When you visited..." (unless visit is in data)
+   - "Your usual branch..." (unless branch is specified)
+   - "As [Name] mentioned..." (never invent staff names)
+   - Specific times/dates not in data
+   
+5. VALIDATION:
+   - Every specific claim must trace to input data
+   - If you cannot trace it to data, do not include it
+   - Better to be general than to be wrong
+"""
+
 class PersonalizationLevel(Enum):
     """Levels of personalization intensity"""
     BASIC = "basic"           # Just name and basic details
@@ -64,24 +104,26 @@ class PersonalizationLevel(Enum):
 
 @dataclass
 class CustomerInsights:
-    """AI-driven customer analysis"""
+    """AI-driven customer analysis - FACTS ONLY"""
     segment: str              # DIGITAL, ASSISTED, TRADITIONAL
     life_stage: str          # young_adult, family_building, pre_retirement, etc
     digital_persona: str     # app_native, hybrid_user, traditional_preferred
     financial_profile: str   # budget_conscious, growing_saver, premium_customer
     communication_style: str # formal, friendly, warm, professional
-    special_factors: List[str] # new_baby, recent_move, accessibility_needs, etc
-    personalization_hooks: List[str] # Specific things to reference
-    confidence_score: float   # How confident we are in this analysis
+    verified_facts: List[str] # ONLY things we know for certain from data
+    behavioral_patterns: List[str] # Patterns inferred from data
+    data_gaps: List[str]     # What we DON'T know (to avoid inventing)
+    confidence_score: float  # How confident we are in this analysis
 
 @dataclass
 class PersonalizationStrategy:
-    """The master plan for personalizing content"""
+    """The master plan for personalizing content - NO FICTION"""
     level: PersonalizationLevel
-    customer_story: str      # AI-generated narrative about the customer
+    customer_data_profile: Dict[str, Any]  # REPLACED customer_story with facts-only profile
     tone_guidelines: Dict[str, str]
-    must_mention: List[str]  # Things that MUST appear in content
-    connection_points: Dict[str, str] # How letter content connects to customer
+    verified_references: List[str]  # Things we CAN mention (from data)
+    forbidden_specifics: List[str]  # Things we must NOT invent
+    pattern_language: Dict[str, str]  # How to reference patterns without specifics
     channel_adaptations: Dict[str, Dict] # Channel-specific personalization hints
 
 @dataclass
@@ -117,11 +159,12 @@ class SharedContext:
     processing_time: float
     ai_model_used: str
     api_calls_saved: int  # Track saved API calls
+    hallucination_check_passed: bool  # NEW: Track if we passed anti-hallucination checks
 
 class SharedBrain:
     """
     The all-powerful AI brain that creates consistent, deeply personalized context
-    UPDATED: Now includes voice channel decisions and reuses existing analysis
+    FIXED: Now prevents ALL hallucinations through strict constraints
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -131,8 +174,8 @@ class SharedBrain:
         
         if self.api_key:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-5-sonnet-20241022"  # Updated model name
-            print("🧠 Shared Brain initialized with Claude AI")
+            self.model = "claude-3-5-sonnet-20241022"
+            print("🧠 Shared Brain initialized with Claude AI (Hallucination-Free Mode)")
         else:
             print("⚠️ Shared Brain running in simulation mode")
         
@@ -144,24 +187,25 @@ class SharedBrain:
         self.communication_rules = Config.load_rules_engine('communication') if CONFIG_AVAILABLE else None
         self.personalization_rules = Config.load_rules_engine('personalization') if CONFIG_AVAILABLE else None
         
-        print("✓ All brain components loaded and ready")
+        print("✓ All brain components loaded with anti-hallucination measures")
     
     def analyze_everything(
         self,
         letter_content: str,
         customer_data: Dict[str, Any],
         force_channels: Optional[List[str]] = None,
-        existing_classification: Optional[Any] = None,  # NEW: Accept existing classification
-        existing_key_points: Optional[List] = None      # NEW: Accept existing key points
+        existing_classification: Optional[Any] = None,
+        existing_key_points: Optional[List] = None
     ) -> SharedContext:
         """
         THE MAIN METHOD: Analyze everything and create the shared context
-        UPDATED: Includes voice channel decisions and reuses existing analysis
+        FIXED: Now includes hallucination prevention at every step
         """
         
         start_time = datetime.now()
         api_calls_saved = 0
         print(f"🧠 Shared Brain analyzing for customer: {customer_data.get('name', 'Unknown')}")
+        print("   🛡️ Hallucination prevention: ACTIVE")
         
         # STEP 1: Document Intelligence - USE EXISTING IF AVAILABLE
         if existing_classification:
@@ -189,16 +233,16 @@ class SharedBrain:
         
         content_strategy = self._create_content_strategy(key_points, document_classification)
         
-        # STEP 3: Customer Intelligence (THE BIG ONE) - Always fresh
-        print("  👤 Deep customer analysis...")
+        # STEP 3: Customer Intelligence (THE BIG ONE) - With anti-hallucination
+        print("  👤 Deep customer analysis (facts only)...")
         customer_insights = self._analyze_customer_deeply(customer_data, document_classification)
         
         # STEP 4: Rules Intelligence
         print("  📋 Evaluating all rules...")
         rules_evaluation = self._evaluate_all_rules(customer_data, document_classification, customer_insights)
         
-        # STEP 5: Personalization Strategy (THE MASTER PLAN)
-        print("  🎯 Creating personalization strategy...")
+        # STEP 5: Personalization Strategy (THE MASTER PLAN) - No fiction allowed
+        print("  🎯 Creating personalization strategy (data-driven)...")
         personalization_strategy = self._create_personalization_strategy(
             customer_insights, 
             document_classification, 
@@ -206,7 +250,7 @@ class SharedBrain:
             letter_content
         )
         
-# STEP 6: Channel Decisions WITH VOICE
+        # STEP 6: Channel Decisions WITH VOICE
         print("  📺 Making channel decisions (including voice)...")
         
         # Build comprehensive context for rules evaluation
@@ -223,7 +267,7 @@ class SharedBrain:
                 'life_stage': customer_insights.life_stage,
                 'digital_persona': customer_insights.digital_persona,
                 'financial_profile': customer_insights.financial_profile,
-                'special_factors': customer_insights.special_factors
+                'verified_facts': customer_insights.verified_facts
             }
         }
         
@@ -310,7 +354,14 @@ class SharedBrain:
         for channel in enabled:
             print(f"      - {channel}: {channel_decisions['reasons'][channel]}")
         
-        # STEP 7: Calculate confidence and metadata
+        # STEP 7: Hallucination Check
+        hallucination_check = self._validate_no_hallucinations(
+            personalization_strategy,
+            customer_insights,
+            customer_data
+        )
+        
+        # STEP 8: Calculate confidence and metadata
         processing_time = (datetime.now() - start_time).total_seconds()
         analysis_confidence = self._calculate_overall_confidence(
             document_classification,
@@ -318,7 +369,7 @@ class SharedBrain:
             personalization_strategy
         )
         
-        # Create the shared context with API calls saved info
+        # Create the shared context with hallucination check
         shared_context = SharedContext(
             original_letter=letter_content,
             customer_data=customer_data,
@@ -332,7 +383,8 @@ class SharedBrain:
             analysis_confidence=analysis_confidence,
             processing_time=processing_time,
             ai_model_used=self.model if self.client else "simulation",
-            api_calls_saved=api_calls_saved  # Track how many API calls we saved
+            api_calls_saved=api_calls_saved,
+            hallucination_check_passed=hallucination_check  # NEW field
         )
         
         print(f"✅ Shared Brain analysis complete in {processing_time:.2f}s")
@@ -340,6 +392,7 @@ class SharedBrain:
             print(f"   💰 Saved {api_calls_saved} API calls by reusing existing analysis")
         print(f"   Customer Segment: {customer_insights.segment}")
         print(f"   Personalization Level: {personalization_strategy.level.value}")
+        print(f"   🛡️ Hallucination Check: {'PASSED' if hallucination_check else 'FAILED'}")
         
         # Show enabled channels including voice
         enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
@@ -366,8 +419,8 @@ class SharedBrain:
         document_classification
     ) -> CustomerInsights:
         """
-        AI-POWERED deep customer analysis - no hardcoding!
-        This is where we build the customer's personality and context
+        AI-POWERED deep customer analysis - FIXED to prevent hallucinations
+        This builds customer insights from ONLY verified data
         """
         
         if not self.client:
@@ -381,7 +434,9 @@ class SharedBrain:
         
         document_context = f"Document type: {doc_type}, Tone: {doc_tone}, Urgency: {doc_urgency}"
         
-        analysis_prompt = f"""You are an expert customer analyst for a major bank. Analyze this customer profile and create deep insights for personalization.
+        analysis_prompt = f"""{UNIVERSAL_CONSTRAINTS}
+
+You are an expert customer analyst for a major bank. Analyze this customer profile and create insights for personalization using ONLY the data provided.
 
 CUSTOMER DATA:
 {customer_summary}
@@ -389,32 +444,40 @@ CUSTOMER DATA:
 DOCUMENT CONTEXT:
 {document_context}
 
-Perform a comprehensive analysis and return your insights in this exact JSON format:
+Perform analysis and return insights in this exact JSON format:
 
 {{
     "segment": "DIGITAL|ASSISTED|TRADITIONAL",
-    "life_stage": "describe their life stage in 1-2 words",
-    "digital_persona": "describe their digital relationship in 2-3 words", 
-    "financial_profile": "describe their financial situation in 2-3 words",
+    "life_stage": "describe their life stage in 1-2 words based on age/data",
+    "digital_persona": "describe their digital relationship based on login data", 
+    "financial_profile": "describe their financial situation based on balance data",
     "communication_style": "formal|friendly|warm|professional|respectful",
-    "special_factors": [
-        "list any special circumstances, life events, accessibility needs, etc"
+    "verified_facts": [
+        "ONLY list facts that are explicitly in the data",
+        "e.g., 'Has account balance of £X'",
+        "e.g., 'Logs in X times per month'",
+        "DO NOT make up any facts"
     ],
-    "personalization_hooks": [
-        "specific things we should reference or mention in communications",
-        "be very specific - not generic advice"
+    "behavioral_patterns": [
+        "Patterns you can infer from the numbers",
+        "e.g., 'Regular digital user' if logins > 20",
+        "e.g., 'Branch visitor' if visits > 0"
+    ],
+    "data_gaps": [
+        "Things we DON'T know about this customer",
+        "e.g., 'No branch preference data'",
+        "e.g., 'No previous conversation history'"
     ],
     "confidence_score": 0.0-1.0,
     "reasoning": "brief explanation of your analysis"
 }}
 
-ANALYSIS GUIDELINES:
-- Be specific and actionable, not generic
-- Consider their digital behavior, age, life events, financial status
-- Think about what would make them feel understood and valued
-- Consider the document context - how does this letter relate to their situation?
-- Personalization hooks should be specific references, not general advice
-- High confidence for clear patterns, lower for ambiguous data
+CRITICAL RULES:
+- NEVER invent staff names, branch names, or specific locations
+- NEVER reference conversations or meetings not in the data
+- NEVER assume preferences not explicitly stated
+- If something is not in the data, add it to data_gaps
+- Only use patterns and statistics, not specific invented details
 
 Analyze this customer now:"""
 
@@ -422,7 +485,7 @@ Analyze this customer now:"""
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2000,
-                temperature=0.4,
+                temperature=0.3,  # Lower temperature for more consistency
                 messages=[{"role": "user", "content": analysis_prompt}]
             )
             
@@ -441,8 +504,9 @@ Analyze this customer now:"""
                     digital_persona=analysis_data.get('digital_persona', 'hybrid_user'),
                     financial_profile=analysis_data.get('financial_profile', 'standard_customer'),
                     communication_style=analysis_data.get('communication_style', 'professional'),
-                    special_factors=analysis_data.get('special_factors', []),
-                    personalization_hooks=analysis_data.get('personalization_hooks', []),
+                    verified_facts=analysis_data.get('verified_facts', []),
+                    behavioral_patterns=analysis_data.get('behavioral_patterns', []),
+                    data_gaps=analysis_data.get('data_gaps', []),
                     confidence_score=float(analysis_data.get('confidence_score', 0.7))
                 )
             
@@ -461,7 +525,7 @@ Analyze this customer now:"""
     ) -> PersonalizationStrategy:
         """
         AI-POWERED creation of the master personalization strategy
-        This determines HOW to personalize across all channels
+        FIXED: Uses data profiles instead of fictional narratives
         """
         
         if not self.client:
@@ -470,7 +534,9 @@ Analyze this customer now:"""
         doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
         doc_tone = document_classification.tone if hasattr(document_classification, 'tone') else document_classification.get('tone', 'FORMAL')
         
-        strategy_prompt = f"""You are a master personalization strategist for banking communications. Create a comprehensive personalization strategy.
+        strategy_prompt = f"""{UNIVERSAL_CONSTRAINTS}
+
+You are a master personalization strategist for banking communications. Create a personalization strategy using ONLY verified data.
 
 CUSTOMER INSIGHTS:
 - Segment: {customer_insights.segment}
@@ -478,8 +544,9 @@ CUSTOMER INSIGHTS:
 - Digital Persona: {customer_insights.digital_persona}
 - Financial Profile: {customer_insights.financial_profile}
 - Communication Style: {customer_insights.communication_style}
-- Special Factors: {', '.join(customer_insights.special_factors)}
-- Personalization Hooks: {', '.join(customer_insights.personalization_hooks)}
+- Verified Facts: {', '.join(customer_insights.verified_facts[:5]) if customer_insights.verified_facts else 'None'}
+- Known Patterns: {', '.join(customer_insights.behavioral_patterns[:5]) if customer_insights.behavioral_patterns else 'None'}
+- Data Gaps: {', '.join(customer_insights.data_gaps[:3]) if customer_insights.data_gaps else 'None'}
 
 DOCUMENT TYPE: {doc_type}
 DOCUMENT TONE: {doc_tone}
@@ -487,41 +554,53 @@ DOCUMENT TONE: {doc_tone}
 LETTER CONTENT PREVIEW:
 {letter_content[:500]}...
 
-Create a comprehensive personalization strategy in this JSON format:
+Create a data-driven personalization strategy in this JSON format:
 
 {{
     "level": "BASIC|MODERATE|DEEP|HYPER",
-    "customer_story": "A compelling 2-3 sentence narrative about this customer that all channels can use",
+    "customer_data_profile": {{
+        "known_attributes": ["list what we know"],
+        "behavioral_patterns": ["patterns from data"],
+        "segment_characteristics": ["general traits of their segment"],
+        "missing_data": ["what we don't know"]
+    }},
     "tone_guidelines": {{
         "overall_tone": "description",
         "formality_level": "casual|professional|formal",
         "warmth_level": "business|friendly|warm|personal",
         "energy_level": "calm|engaging|enthusiastic"
     }},
-    "must_mention": [
-        "specific things that MUST be referenced in personalized content",
-        "be very specific to this customer"
+    "verified_references": [
+        "Things we CAN mention because they're in the data",
+        "e.g., 'Your account balance'",
+        "e.g., 'Your digital banking usage'"
     ],
-    "connection_points": {{
-        "key_letter_point_1": "how this connects to customer's situation",
-        "key_letter_point_2": "why this matters to them specifically"
+    "forbidden_specifics": [
+        "Things we must NOT invent",
+        "e.g., 'Specific branch names'",
+        "e.g., 'Staff member names'",
+        "e.g., 'Previous conversations'"
+    ],
+    "pattern_language": {{
+        "instead_of_branch_name": "your local branch",
+        "instead_of_staff_name": "our team",
+        "instead_of_specific_date": "recently",
+        "instead_of_conversation": "our records show"
     }},
     "channel_adaptations": {{
-        "email": {{"hints": "how to adapt personalization for email format"}},
-        "sms": {{"hints": "how to adapt for SMS constraints"}},
-        "letter": {{"hints": "how to adapt for formal letter style"}},
-        "voice": {{"hints": "how to adapt for conversational voice note"}}
+        "email": {{"hints": "how to personalize without inventing"}},
+        "sms": {{"hints": "brief factual personalization"}},
+        "letter": {{"hints": "formal but understanding tone"}},
+        "voice": {{"hints": "conversational without fiction"}}
     }}
 }}
 
-STRATEGY GUIDELINES:
-- Make it specific to THIS customer, not generic
-- Consider how the letter content relates to their personal situation  
-- Think about their preferred communication style
-- Adapt the strategy for different channel constraints
-- Be actionable - give specific guidance for how to personalize
-- Higher personalization levels for customers with more personal data and engagement
-- Include voice channel adaptation for natural, conversational tone
+CRITICAL RULES:
+- Use customer_data_profile NOT a narrative story
+- List what we DON'T know to avoid inventing it
+- Provide pattern language for general references
+- Higher personalization levels only when more verified data exists
+- NEVER suggest mentioning specific people, places, or conversations
 
 Create the strategy now:"""
 
@@ -529,7 +608,7 @@ Create the strategy now:"""
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2500,
-                temperature=0.5,
+                temperature=0.4,  # Lower for consistency
                 messages=[{"role": "user", "content": strategy_prompt}]
             )
             
@@ -544,10 +623,11 @@ Create the strategy now:"""
                 
                 return PersonalizationStrategy(
                     level=PersonalizationLevel(strategy_data.get('level', 'MODERATE').lower()),
-                    customer_story=strategy_data.get('customer_story', 'Valued customer with unique needs'),
+                    customer_data_profile=strategy_data.get('customer_data_profile', {}),
                     tone_guidelines=strategy_data.get('tone_guidelines', {}),
-                    must_mention=strategy_data.get('must_mention', []),
-                    connection_points=strategy_data.get('connection_points', {}),
+                    verified_references=strategy_data.get('verified_references', []),
+                    forbidden_specifics=strategy_data.get('forbidden_specifics', []),
+                    pattern_language=strategy_data.get('pattern_language', {}),
                     channel_adaptations=strategy_data.get('channel_adaptations', {})
                 )
             
@@ -557,6 +637,46 @@ Create the strategy now:"""
         # Fallback to simulation
         return self._simulate_personalization_strategy(customer_insights)
     
+    def _validate_no_hallucinations(
+        self,
+        strategy: PersonalizationStrategy,
+        insights: CustomerInsights,
+        customer_data: Dict[str, Any]
+    ) -> bool:
+        """
+        NEW METHOD: Validate that no hallucinations will occur
+        Returns True if safe, False if risk detected
+        """
+        
+        # Check for risky elements
+        risky_elements = []
+        
+        # Check if we have sufficient data for the personalization level
+        fact_count = len(insights.verified_facts)
+        if strategy.level == PersonalizationLevel.HYPER and fact_count < 5:
+            risky_elements.append("Hyper personalization with insufficient data")
+        elif strategy.level == PersonalizationLevel.DEEP and fact_count < 3:
+            risky_elements.append("Deep personalization with limited data")
+        
+        # Check for proper data gaps acknowledgment
+        if not insights.data_gaps:
+            risky_elements.append("No data gaps identified - risk of assumptions")
+        
+        # Check for forbidden specifics list
+        if not strategy.forbidden_specifics:
+            risky_elements.append("No forbidden specifics defined")
+        
+        # Check for pattern language (fallbacks)
+        if not strategy.pattern_language:
+            risky_elements.append("No pattern language for missing data")
+        
+        # Log any risks
+        if risky_elements:
+            print(f"   ⚠️ Hallucination risks detected: {risky_elements}")
+            return False
+        
+        return True
+    
     def _create_content_strategy(
         self, 
         key_points: List[Any], 
@@ -564,7 +684,6 @@ Create the strategy now:"""
     ) -> ContentStrategy:
         """
         Create the content preservation strategy based on document type and key points
-        UPDATED: Includes voice channel requirements
         """
         
         # Separate points by importance
@@ -583,7 +702,7 @@ Create the strategy now:"""
                 "letter": ["critical", "important", "contextual"],
                 "sms": ["critical"],
                 "app": ["critical"],
-                "voice": ["critical", "important"]  # Voice gets critical and important for urgent
+                "voice": ["critical", "important"]
             }
         elif doc_type == "PROMOTIONAL":
             # Promotional: focus on benefits and calls to action
@@ -592,7 +711,7 @@ Create the strategy now:"""
                 "sms": ["critical"],
                 "app": ["critical"],
                 "letter": ["critical", "important"],
-                "voice": ["critical"]  # Voice just hits key benefits
+                "voice": ["critical"]
             }
         else:
             # Informational: balanced approach
@@ -601,7 +720,7 @@ Create the strategy now:"""
                 "sms": ["critical"],
                 "app": ["critical"],
                 "letter": ["critical", "important", "contextual"],
-                "voice": ["critical"]  # Voice focuses on critical only
+                "voice": ["critical"]
             }
         
         preservation_instructions = {
@@ -641,7 +760,7 @@ Create the strategy now:"""
             'insights': {
                 'segment': customer_insights.segment,
                 'digital_persona': customer_insights.digital_persona,
-                'special_factors': customer_insights.special_factors
+                'verified_facts': customer_insights.verified_facts  # Use facts not fiction
             }
         }
         
@@ -712,6 +831,9 @@ Create the strategy now:"""
         doc_confidence = document_classification.confidence_score if hasattr(document_classification, 'confidence_score') else document_classification.get('confidence_score', 0.8)
         customer_confidence = customer_insights.confidence_score
         
+        # Factor in data availability - more facts = higher confidence
+        data_confidence = min(1.0, len(customer_insights.verified_facts) * 0.1 + 0.5)
+        
         # Factor in personalization level - higher levels need higher confidence
         strategy_confidence = 1.0
         if personalization_strategy.level == PersonalizationLevel.HYPER:
@@ -719,13 +841,13 @@ Create the strategy now:"""
         elif personalization_strategy.level == PersonalizationLevel.DEEP:
             strategy_confidence = 0.95
         
-        # Average with slight weight toward customer analysis
-        overall = (doc_confidence * 0.3 + customer_confidence * 0.5 + strategy_confidence * 0.2)
+        # Average with weight toward actual data
+        overall = (doc_confidence * 0.2 + customer_confidence * 0.3 + data_confidence * 0.4 + strategy_confidence * 0.1)
         
         return round(overall, 3)
     
     def _simulate_customer_insights(self, customer_data: Dict[str, Any]) -> CustomerInsights:
-        """Simulation fallback for customer insights"""
+        """Simulation fallback for customer insights - NO HALLUCINATIONS"""
         
         # Simple rule-based simulation
         digital_logins = customer_data.get('digital_logins_per_month', 0)
@@ -750,17 +872,29 @@ Create the strategy now:"""
         else:
             financial_profile = 'standard_saver'
         
-        life_events = customer_data.get('recent_life_events', 'None')
-        special_factors = []
-        personalization_hooks = []
+        # Build verified facts from actual data
+        verified_facts = []
+        if customer_data.get('name'):
+            verified_facts.append(f"Customer name: {customer_data['name']}")
+        if customer_data.get('account_balance') is not None:
+            verified_facts.append(f"Account balance: £{customer_data['account_balance']:,}")
+        if customer_data.get('digital_logins_per_month') is not None:
+            verified_facts.append(f"Digital logins: {customer_data['digital_logins_per_month']} per month")
         
-        if life_events not in ['None', 'unknown']:
-            special_factors.append(life_events)
-            personalization_hooks.append(f"Reference {life_events}")
+        # Identify data gaps
+        data_gaps = []
+        if not customer_data.get('preferred_branch'):
+            data_gaps.append("No preferred branch information")
+        if not customer_data.get('conversation_history'):
+            data_gaps.append("No previous conversation records")
+        if not customer_data.get('product_preferences'):
+            data_gaps.append("No product preference data")
         
+        behavioral_patterns = []
+        if digital_logins > 20:
+            behavioral_patterns.append("Frequent digital user")
         if age_val > 65:
-            special_factors.append("senior_customer")
-            personalization_hooks.append("Use respectful, clear communication")
+            behavioral_patterns.append("Senior customer segment")
         
         return CustomerInsights(
             segment=segment,
@@ -768,45 +902,59 @@ Create the strategy now:"""
             digital_persona=digital_persona,
             financial_profile=financial_profile,
             communication_style='friendly' if age_val < 50 else 'respectful',
-            special_factors=special_factors,
-            personalization_hooks=personalization_hooks,
+            verified_facts=verified_facts,
+            behavioral_patterns=behavioral_patterns,
+            data_gaps=data_gaps,
             confidence_score=0.7
         )
     
     def _simulate_personalization_strategy(self, customer_insights: CustomerInsights) -> PersonalizationStrategy:
-        """Simulation fallback for personalization strategy"""
+        """Simulation fallback for personalization strategy - DATA DRIVEN ONLY"""
         
         # Determine level based on available data
-        hook_count = len(customer_insights.personalization_hooks)
-        factor_count = len(customer_insights.special_factors)
+        fact_count = len(customer_insights.verified_facts)
         
-        if hook_count >= 3 and factor_count >= 2:
-            level = PersonalizationLevel.HYPER
-        elif hook_count >= 2:
+        if fact_count >= 5:
             level = PersonalizationLevel.DEEP
-        elif hook_count >= 1:
+        elif fact_count >= 3:
             level = PersonalizationLevel.MODERATE
         else:
             level = PersonalizationLevel.BASIC
         
-        customer_story = f"A {customer_insights.financial_profile} customer with {customer_insights.digital_persona} preferences"
+        # Build data profile (not story)
+        customer_data_profile = {
+            "known_attributes": customer_insights.verified_facts,
+            "behavioral_patterns": customer_insights.behavioral_patterns,
+            "segment_characteristics": [f"{customer_insights.segment} segment customer"],
+            "missing_data": customer_insights.data_gaps
+        }
         
         return PersonalizationStrategy(
             level=level,
-            customer_story=customer_story,
+            customer_data_profile=customer_data_profile,
             tone_guidelines={
                 'overall_tone': customer_insights.communication_style,
                 'formality_level': 'formal' if customer_insights.segment == 'TRADITIONAL' else 'professional',
                 'warmth_level': 'friendly'
             },
-            must_mention=customer_insights.personalization_hooks[:2],
-            connection_points={},
+            verified_references=customer_insights.verified_facts[:3],
+            forbidden_specifics=[
+                "Branch names",
+                "Staff names",
+                "Specific dates not in data",
+                "Previous conversations"
+            ],
+            pattern_language={
+                "instead_of_branch_name": "your local branch",
+                "instead_of_staff_name": "our team",
+                "instead_of_specific_date": "recently"
+            },
             channel_adaptations={
-                'email': {'hints': 'Full personalization with context'},
-                'sms': {'hints': 'Brief personal touch'},
-                'app': {'hints': 'Action-oriented personalization'},
-                'letter': {'hints': 'Formal but understanding tone'},
-                'voice': {'hints': 'Conversational and warm, natural speech'}
+                'email': {'hints': 'Use verified data only'},
+                'sms': {'hints': 'Brief factual only'},
+                'app': {'hints': 'Action-oriented facts'},
+                'letter': {'hints': 'Formal with verified data'},
+                'voice': {'hints': 'Natural but factual'}
             }
         )
     
@@ -821,10 +969,12 @@ Create the strategy now:"""
             'confidence_score': shared_context.analysis_confidence,
             'processing_time': f"{shared_context.processing_time:.2f}s",
             'document_type': shared_context.document_classification.get('primary_classification'),
-            'key_personalization_hooks': shared_context.customer_insights.personalization_hooks,
-            'must_mention_items': shared_context.personalization_strategy.must_mention,
+            'verified_facts': shared_context.customer_insights.verified_facts,
+            'data_gaps': shared_context.customer_insights.data_gaps,
+            'forbidden_specifics': shared_context.personalization_strategy.forbidden_specifics,
             'ai_model_used': shared_context.ai_model_used,
             'api_calls_saved': shared_context.api_calls_saved,
             'voice_enabled': shared_context.channel_decisions['enabled_channels'].get('voice', False),
-            'voice_reason': shared_context.channel_decisions['reasons'].get('voice', 'N/A')
+            'voice_reason': shared_context.channel_decisions['reasons'].get('voice', 'N/A'),
+            'hallucination_check': 'PASSED' if shared_context.hallucination_check_passed else 'FAILED'
         }

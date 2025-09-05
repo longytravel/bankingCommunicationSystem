@@ -19,7 +19,7 @@ from .voice_note_generator_enhanced import SmartVoiceGenerator, VoiceResult, gen
 from .content_validator import ContentValidator, PointImportance, KeyPoint, validate_personalization
 from .document_classifier import AIDocumentClassifier, ClassificationResult, DocumentType, classify_document
 from .rules_engine import RulesEngine, Rule, RuleOperator, RuleAction
-from .personalization_engine import PersonalizationEngine, create_personalization_engine, personalize_for_customer
+# REMOVED: personalization_engine import (module doesn't exist)
 
 # Import advanced personalization (if available)
 try:
@@ -42,6 +42,6 @@ __all__ = [
     'SmartVoiceGenerator', 'VoiceResult', 'generate_smart_voice_note',
     'ContentValidator', 'PointImportance', 'KeyPoint', 'validate_personalization',
     'AIDocumentClassifier', 'ClassificationResult', 'DocumentType', 'classify_document',
-    'RulesEngine', 'Rule', 'RuleOperator', 'RuleAction',
-    'PersonalizationEngine', 'create_personalization_engine', 'personalize_for_customer'
+    'RulesEngine', 'Rule', 'RuleOperator', 'RuleAction'
+    # REMOVED: PersonalizationEngine items
 ]

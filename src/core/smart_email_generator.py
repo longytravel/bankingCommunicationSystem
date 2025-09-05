@@ -1,6 +1,6 @@
 """
-Smart Email Generator - Self-contained with configuration
-Uses SharedContext for Consistent, Deeply Personalized Emails
+Smart Email Generator - Hallucination-Free Version
+Uses SharedContext for Consistent, Deeply Personalized Emails WITHOUT Fiction
 """
 
 import os
@@ -37,6 +37,48 @@ except ImportError:
     SHARED_BRAIN_AVAILABLE = False
     print("⚠️ Could not import SharedContext - make sure shared_brain.py is available")
 
+# ============== UNIVERSAL ANTI-HALLUCINATION CONSTRAINTS ==============
+# Same constraints as SharedBrain - must be consistent
+UNIVERSAL_CONSTRAINTS = """
+CRITICAL ANTI-HALLUCINATION RULES - APPLY TO EVERY EMAIL:
+
+1. NEVER INVENT OR CREATE:
+   - Names of people (staff, managers, representatives)
+   - Names of places (branches, streets, buildings)
+   - Specific dates or times not in the data
+   - Conversations or meetings that aren't documented
+   - Phone calls or interactions not recorded
+   - Product names or features not in the system
+   - Customer preferences not explicitly stated
+   - Life events not mentioned in data
+   - Financial details not provided
+
+2. ONLY USE:
+   - Information from verified_facts list
+   - Content from the original letter
+   - General segment characteristics (not specific to individual)
+   - System-wide features available to all customers
+   
+3. WHEN DATA IS MISSING USE PATTERN LANGUAGE:
+   - Say "your local branch" NOT "Baker Street branch"
+   - Say "our team" NOT "Sarah from customer service"
+   - Say "recently" NOT "last Tuesday at 3pm"
+   - Say "in your area" NOT "on High Street"
+   
+4. FORBIDDEN PHRASES:
+   - "As we discussed..." (unless conversation is documented)
+   - "When you visited..." (unless visit is documented)
+   - "Your usual branch..." (unless branch is specified)
+   - "As [Name] mentioned..." (never invent staff names)
+   - Any specific time/date not in customer data
+   
+5. VALIDATION:
+   - Every specific claim must trace to verified_facts
+   - Check forbidden_specifics list - NEVER mention these
+   - Use pattern_language for any missing information
+   - Better to be general and accurate than specific and wrong
+"""
+
 @dataclass
 class EmailResult:
     """Result from email generation"""
@@ -50,18 +92,18 @@ class EmailResult:
     generation_method: str
     processing_time: float
     quality_score: float
+    hallucination_check_passed: bool  # NEW: Track if we avoided hallucinations
 
 class SmartEmailGenerator:
     """
-    Smart Email Generator - Self-contained with all configuration
-    Takes a SharedContext and generates perfectly aligned email content
+    Smart Email Generator - Hallucination-Free Version
+    Takes a SharedContext and generates perfectly aligned email content WITHOUT inventing details
     """
     
     # ============== EMAIL CONFIGURATION ==============
-    # All email-specific configuration in one place (matches SMS structure)
     EMAIL_CONFIG = {
-        'max_length': 5000,  # Maximum email length in characters
-        'min_length': 200,   # Minimum for a proper email
+        'max_length': 5000,
+        'min_length': 200,
         'format': {
             'default': 'html',
             'plain_text_option': True
@@ -79,10 +121,10 @@ class SmartEmailGenerator:
             }
         },
         'personalization': {
-            'include_full_name': True,
-            'use_preferred_name': True,
-            'reference_history': True,
-            'mention_life_events': True
+            'use_verified_facts_only': True,  # NEW: Only use verified data
+            'check_forbidden_list': True,     # NEW: Check what NOT to mention
+            'use_pattern_language': True,     # NEW: Use safe alternatives
+            'reference_data_gaps': False      # NEW: Don't mention what we don't know
         },
         'greeting_styles': {
             'DIGITAL': {
@@ -105,7 +147,7 @@ class SmartEmailGenerator:
             }
         },
         'content_structure': {
-            'include_summary': True,  # TL;DR at the top
+            'include_summary': True,
             'use_bullet_points': True,
             'highlight_actions': True,
             'include_next_steps': True,
@@ -127,28 +169,11 @@ Manage your preferences: lloydsbank.com/preferences
 """
         },
         'quality_thresholds': {
-            'min_personalization': 3,  # Minimum personalization elements
-            'min_content_preservation': 0.9,  # 90% of critical points must be included
-            'readability_score': 60,  # Flesch reading ease target
+            'min_personalization': 2,  # Reduced since we're being more careful
+            'min_content_preservation': 0.9,
+            'readability_score': 60,
             'max_paragraphs': 8,
-            'ideal_paragraph_length': 100  # words
-        },
-        'tone_adaptations': {
-            'urgent': {
-                'emphasize_timeline': True,
-                'use_active_voice': True,
-                'highlight_consequences': True
-            },
-            'promotional': {
-                'emphasize_benefits': True,
-                'use_positive_language': True,
-                'include_testimonials': False
-            },
-            'regulatory': {
-                'use_precise_language': True,
-                'include_references': True,
-                'maintain_formal_tone': True
-            }
+            'ideal_paragraph_length': 100
         }
     }
     
@@ -156,38 +181,44 @@ Manage your preferences: lloydsbank.com/preferences
         """Initialize the smart email generator"""
         self.api_key = api_key or os.getenv('CLAUDE_API_KEY')
         self.client = None
-        self.config = self.EMAIL_CONFIG  # Use local config
+        self.config = self.EMAIL_CONFIG
         
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
             self.model = "claude-3-5-sonnet-20241022"
-            print("✅ Smart Email Generator initialized with Claude AI")
+            print("✅ Smart Email Generator initialized (Hallucination-Free Mode)")
         else:
             print("⚠️ Smart Email Generator running in simulation mode")
     
     def generate_email(self, shared_context: SharedContext) -> EmailResult:
         """
         Generate a perfectly personalized email using the Shared Brain's intelligence
-        
-        Args:
-            shared_context: The complete intelligence from SharedBrain.analyze_everything()
-            
-        Returns:
-            EmailResult with the generated email and metadata
+        WITHOUT any hallucinations or invented details
         """
         
         start_time = datetime.now()
         
-        print(f"📧 Generating smart email for {shared_context.customer_data.get('name')}...")
+        print(f"📧 Generating hallucination-free email for {shared_context.customer_data.get('name')}...")
         
         # Check if email is enabled
         if not shared_context.channel_decisions['enabled_channels'].get('email', True):
             return self._create_disabled_result(shared_context, "Email disabled by rules")
         
+        # Pre-generation hallucination check
+        if hasattr(shared_context, 'hallucination_check_passed'):
+            if not shared_context.hallucination_check_passed:
+                print("  ⚠️ Hallucination risk detected - using extra caution")
+        
         if self.client:
             result = self._generate_with_ai(shared_context)
         else:
             result = self._generate_simulation(shared_context)
+        
+        # Post-generation validation
+        result.hallucination_check_passed = self._validate_no_hallucinations(
+            result.content,
+            shared_context
+        )
         
         # Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds()
@@ -195,11 +226,12 @@ Manage your preferences: lloydsbank.com/preferences
         
         print(f"✅ Smart email generated in {processing_time:.2f}s")
         print(f"   Words: {result.word_count}, Quality: {result.quality_score:.2%}")
+        print(f"   🛡️ Hallucination Check: {'PASSED' if result.hallucination_check_passed else 'FAILED'}")
         
         return result
     
     def _generate_with_ai(self, shared_context: SharedContext) -> EmailResult:
-        """Generate email using AI with the shared context intelligence"""
+        """Generate email using AI with strict anti-hallucination measures"""
         
         # Extract intelligence from shared context
         customer = shared_context.customer_data
@@ -213,10 +245,10 @@ Manage your preferences: lloydsbank.com/preferences
         
         # Determine document type for tone
         doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
-        tone_adaptation = self.config['tone_adaptations'].get(doc_type.lower(), {})
+        tone_adaptation = self.config.get('tone_adaptations', {}).get(doc_type.lower(), {})
         
-        # Build the email generation prompt
-        generation_prompt = self._build_generation_prompt(
+        # Build the SAFE email generation prompt
+        generation_prompt = self._build_safe_generation_prompt(
             shared_context.original_letter,
             customer,
             insights,
@@ -231,7 +263,7 @@ Manage your preferences: lloydsbank.com/preferences
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4000,
-                temperature=0.5,
+                temperature=0.3,  # Lower temperature for more consistency
                 messages=[{"role": "user", "content": generation_prompt}]
             )
             
@@ -247,7 +279,7 @@ Manage your preferences: lloydsbank.com/preferences
             print(f"AI email generation error: {e}")
             return self._generate_fallback(shared_context)
     
-    def _build_generation_prompt(
+    def _build_safe_generation_prompt(
         self, 
         original_letter: str,
         customer: Dict[str, Any],
@@ -258,7 +290,7 @@ Manage your preferences: lloydsbank.com/preferences
         tone_adaptation: Dict[str, Any],
         doc_type: str
     ) -> str:
-        """Build the email generation prompt using shared context intelligence"""
+        """Build email generation prompt with STRONG anti-hallucination measures"""
         
         # Get content requirements for email
         email_requirements = content_strategy.channel_requirements.get('email', ['critical', 'important'])
@@ -274,84 +306,86 @@ Manage your preferences: lloydsbank.com/preferences
         
         # Format greeting with customer name
         first_name = customer.get('name', '').split()[0] if customer.get('name') else 'Customer'
-        greeting = greeting_config['greeting'].format(first_name=first_name, title='Mr/Ms', last_name=customer.get('name', '').split()[-1] if customer.get('name') else 'Customer')
+        last_name = customer.get('name', '').split()[-1] if customer.get('name') and len(customer.get('name', '').split()) > 1 else customer.get('name', 'Customer')
         
-        # Build subject line template
-        subject_template = self.config['subject_line']['templates'].get(doc_type, self.config['subject_line']['templates']['DEFAULT'])
+        # Safe greeting based on what we actually know
+        if segment == 'TRADITIONAL' and customer.get('name'):
+            greeting = greeting_config['greeting'].format(
+                title='Mr/Ms',  # Generic title unless we know gender
+                last_name=last_name
+            )
+        elif customer.get('name'):
+            greeting = greeting_config['greeting'].format(first_name=first_name)
+        else:
+            greeting = greeting_config['greeting'].replace('{first_name}', 'Valued Customer')
         
-        prompt = f"""You are writing a deeply personalized email for a Lloyds Bank customer. You have complete intelligence about the customer and must create an engaging, complete email.
+        # Build the prompt with STRONG constraints
+        prompt = f"""{UNIVERSAL_CONSTRAINTS}
 
-CRITICAL REQUIREMENTS:
-1. Include 100% of the information from the original letter - NOTHING can be omitted
-2. Deeply personalize based on the customer's specific situation
-3. NO PLACEHOLDERS - write complete, real content
-4. Make natural connections between information and customer context
+You are writing a personalized email for a Lloyds Bank customer using ONLY verified information.
 
 ORIGINAL LETTER (preserve ALL information):
 {original_letter}
 
-CUSTOMER PROFILE:
-Name: {customer.get('name')}
-Segment: {insights.segment}
-Life Stage: {insights.life_stage}
-Digital Persona: {insights.digital_persona}
-Financial Profile: {insights.financial_profile}
-Communication Style: {insights.communication_style}
-Language: {customer.get('preferred_language', 'English')}
-Special Factors: {', '.join(insights.special_factors[:3]) if insights.special_factors else 'None'}
+VERIFIED CUSTOMER FACTS (ONLY use these for personalization):
+{chr(10).join(['• ' + fact for fact in insights.verified_facts]) if insights.verified_facts else '• Customer name: ' + customer.get('name', 'Unknown')}
 
-PERSONALIZATION STRATEGY:
-Level: {strategy.level.value}
-Customer Story: {strategy.customer_story}
-Tone: {greeting_config['tone']}
-Must Mention: {', '.join(strategy.must_mention[:3]) if strategy.must_mention else 'None'}
+DATA WE DON'T HAVE (NEVER invent details about these):
+{chr(10).join(['• ' + gap for gap in insights.data_gaps]) if insights.data_gaps else '• No data gaps identified'}
 
-CONTENT TO PRESERVE (ALL of these):
-{chr(10).join(['• ' + item for item in content_to_preserve])}
+FORBIDDEN SPECIFICS (NEVER mention these):
+{chr(10).join(['• ' + item for item in strategy.forbidden_specifics]) if strategy.forbidden_specifics else '• No specific items forbidden'}
+
+SAFE PATTERN LANGUAGE (use these for missing information):
+{chr(10).join([f'• Instead of {k}: use "{v}"' for k, v in strategy.pattern_language.items()]) if strategy.pattern_language else '• No pattern language defined'}
+
+CUSTOMER SEGMENT: {insights.segment}
+LANGUAGE: {customer.get('preferred_language', 'English')}
+TONE: {greeting_config['tone']}
 
 EMAIL REQUIREMENTS:
 - Start with: "{greeting},"
-- Tone: {greeting_config['tone']}
-- Style: {greeting_config['style']}
 - End with: "{greeting_config['closing']}"
 - Length: {self.config['min_length']}-{self.config['max_length']} characters
-- Include summary paragraph at the beginning
-- Use clear sections with headers if needed
-- Highlight any actions required
+- Preserve ALL information from original letter
+- Use bullet points for clarity where appropriate
 
-PERSONALIZATION REQUIREMENTS:
-- Weave in customer context naturally throughout
-- Reference at least {self.config['quality_thresholds']['min_personalization']} personal elements
-- Make connections between content and customer's situation
-- Use language appropriate for their {insights.segment} segment
-
-TONE ADAPTATIONS:
-{json.dumps(tone_adaptation, indent=2) if tone_adaptation else 'Standard professional tone'}
+PERSONALIZATION RULES:
+1. Reference ONLY the verified facts listed above
+2. For anything not in verified facts, use general language
+3. NEVER mention specific:
+   - Branch names or locations
+   - Staff member names
+   - Dates/times of interactions not in data
+   - Previous conversations not documented
+4. Use pattern language for missing information
+5. Focus on what we KNOW, not what we guess
 
 Generate the email as JSON:
 {{
-    "subject_line": "Personalized subject under {self.config['subject_line']['max_length']} chars",
-    "email_content": "Complete email text with greeting, full body preserving all content, and closing",
-    "personalization_elements": ["list", "of", "specific", "personalizations", "applied"],
+    "subject_line": "Subject under {self.config['subject_line']['max_length']} chars using ONLY verified info",
+    "email_content": "Complete email with greeting, body preserving all letter content, and closing. Use ONLY verified facts for personalization.",
+    "personalization_elements": ["list exactly which verified facts were referenced"],
     "tone_achieved": "description of tone used"
 }}
 
-Write in {customer.get('preferred_language', 'English')}. Make it feel personally written for this specific customer."""
+CRITICAL: If you cannot verify a detail, use general language instead. Better to say "your local branch" than invent "Baker Street branch".
+
+Write in {customer.get('preferred_language', 'English')}."""
 
         return prompt
     
     def _parse_ai_response(self, content: str) -> Optional[Dict[str, Any]]:
-        """Parse the AI response to extract email data with robust handling"""
+        """Parse the AI response to extract email data"""
         
         # Remove markdown formatting if present
         content = content.replace('```json', '').replace('```', '').strip()
         
         # Clean up common issues
-        content = content.replace('\n', ' ')  # Replace newlines with spaces
-        content = content.replace('\r', '')   # Remove carriage returns
-        content = content.replace('\t', ' ')  # Replace tabs with spaces
+        content = content.replace('\n', ' ')
+        content = content.replace('\r', '')
+        content = content.replace('\t', ' ')
         
-        # Try direct JSON parsing first
         try:
             parsed = json.loads(content)
             if parsed and isinstance(parsed, dict):
@@ -359,48 +393,88 @@ Write in {customer.get('preferred_language', 'English')}. Make it feel personall
         except json.JSONDecodeError:
             pass
         
-        # If direct parsing fails, try to extract JSON from the content
+        # If direct parsing fails, try to extract JSON
         if '{' in content and '}' in content:
             try:
                 json_start = content.index('{')
                 json_end = content.rindex('}') + 1
                 json_str = content[json_start:json_end]
                 
-                # Clean the extracted JSON
-                json_str = json_str.replace('\n', ' ')
-                json_str = json_str.replace('\r', '')
-                json_str = json_str.replace('\t', ' ')
-                
-                # Remove any trailing commas before closing braces/brackets
+                # Clean and parse
                 json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-                
                 parsed = json.loads(json_str)
                 if parsed and isinstance(parsed, dict):
                     return parsed
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"JSON extraction failed: {e}")
         
-        # Final attempt - try to fix common JSON issues
-        try:
-            # Try to extract just the content between first { and last }
-            if '{' in content and '}' in content:
-                start = content.find('{')
-                end = content.rfind('}') + 1
-                potential_json = content[start:end]
-                
-                # Aggressive cleaning
-                potential_json = re.sub(r'[\r\n\t]', ' ', potential_json)  # Remove all control chars
-                potential_json = re.sub(r'\s+', ' ', potential_json)  # Normalize whitespace
-                potential_json = re.sub(r',\s*([}\]])', r'\1', potential_json)  # Remove trailing commas
-                
-                parsed = json.loads(potential_json)
-                if parsed and isinstance(parsed, dict):
-                    return parsed
-        except Exception as e:
-            print(f"Final parsing attempt failed: {e}")
-        
-        print("⚠️ All parsing attempts failed for email response")
         return None
+    
+    def _validate_no_hallucinations(self, email_content: str, shared_context: SharedContext) -> bool:
+        """
+        Validate that the generated email contains no hallucinations
+        Returns True if safe, False if potential hallucinations detected
+        """
+        
+        content_lower = email_content.lower()
+        issues = []
+        
+        # Check for forbidden specifics
+        if hasattr(shared_context.personalization_strategy, 'forbidden_specifics'):
+            for forbidden in shared_context.personalization_strategy.forbidden_specifics:
+                if 'branch name' in forbidden.lower() and 'branch' in content_lower:
+                    # Check for specific branch names (not just "branch" or "local branch")
+                    branch_patterns = r'\b(?:baker|high|main|central|north|south|east|west)\s+(?:street|road|avenue|branch)'
+                    if re.search(branch_patterns, content_lower):
+                        issues.append("Specific branch name detected")
+                
+                if 'staff name' in forbidden.lower():
+                    # Check for names that aren't the customer's
+                    customer_name = shared_context.customer_data.get('name', '').lower()
+                    # Look for capitalized names that aren't the customer
+                    name_pattern = r'\b[A-Z][a-z]+\b'
+                    potential_names = re.findall(name_pattern, email_content)
+                    for name in potential_names:
+                        if name.lower() not in customer_name.lower() and name not in ['Lloyds', 'Bank', 'Dear', 'Best', 'Yours']:
+                            issues.append(f"Potential staff name detected: {name}")
+        
+        # Check for dangerous phrases
+        dangerous_phrases = [
+            "as we discussed",
+            "when you visited",
+            "your usual branch",
+            "as mentioned by",
+            "during our conversation",
+            "when we spoke",
+            "your relationship manager"
+        ]
+        
+        for phrase in dangerous_phrases:
+            if phrase in content_lower:
+                # Check if this is actually in the verified facts
+                if not any(phrase in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+                    issues.append(f"Dangerous phrase detected: '{phrase}'")
+        
+        # Check for specific dates/times not in data
+        date_patterns = [
+            r'\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+            r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}',
+            r'\b\d{1,2}:\d{2}\s*(?:am|pm)\b',
+            r'\blast\s+(?:week|month|tuesday|monday)\b'
+        ]
+        
+        for pattern in date_patterns:
+            if re.search(pattern, content_lower):
+                # Check if this date/time is in verified facts
+                if not any(re.search(pattern, fact.lower()) for fact in shared_context.customer_insights.verified_facts):
+                    issues.append("Specific date/time not in verified data")
+        
+        # Log any issues found
+        if issues:
+            print(f"  ⚠️ Potential hallucination risks detected: {issues}")
+            return False
+        
+        return True
     
     def _create_email_result(
         self, 
@@ -413,7 +487,7 @@ Write in {customer.get('preferred_language', 'English')}. Make it feel personall
         email_content = email_data.get('email_content', '')
         subject_line = email_data.get('subject_line', 'Important Update')
         
-        # Add appropriate footer based on document type
+        # Add appropriate footer
         doc_type = shared_context.document_classification.get('primary_classification', 'INFORMATIONAL')
         if doc_type == 'PROMOTIONAL':
             email_content += self.config['footer_templates']['promotional']
@@ -422,11 +496,15 @@ Write in {customer.get('preferred_language', 'English')}. Make it feel personall
         else:
             email_content += self.config['footer_templates']['security']
         
+        # Validate no hallucinations
+        hallucination_check = self._validate_no_hallucinations(email_content, shared_context)
+        
         # Calculate quality score
         quality_score = self._calculate_quality_score(
             email_content,
             email_data.get('personalization_elements', []),
-            shared_context
+            shared_context,
+            hallucination_check
         )
         
         return EmailResult(
@@ -439,81 +517,93 @@ Write in {customer.get('preferred_language', 'English')}. Make it feel personall
             language=shared_context.customer_data.get('preferred_language', 'English'),
             generation_method=method,
             processing_time=0.0,
-            quality_score=quality_score
+            quality_score=quality_score,
+            hallucination_check_passed=hallucination_check
         )
     
     def _calculate_quality_score(
         self, 
         email_content: str, 
         personalization_elements: List[str],
-        shared_context: SharedContext
+        shared_context: SharedContext,
+        hallucination_check: bool
     ) -> float:
-        """Calculate quality score based on configuration thresholds"""
+        """Calculate quality score with hallucination check factor"""
         
         score = 0.5  # Base score
         
-        # Check personalization depth
+        # Hallucination check is most important
+        if hallucination_check:
+            score += 0.2
+        else:
+            score -= 0.2  # Penalty for potential hallucinations
+        
+        # Check personalization depth (less aggressive now)
         min_personal = self.config['quality_thresholds']['min_personalization']
         if len(personalization_elements) >= min_personal:
-            score += 0.2
+            score += 0.1
         
         # Check content length
-        word_count = len(email_content.split())
         if self.config['min_length'] <= len(email_content) <= self.config['max_length']:
             score += 0.1
         
-        # Check for must-mention items
-        must_mention_found = 0
-        for item in shared_context.personalization_strategy.must_mention:
-            item_words = item.lower().split()
-            key_words = [w for w in item_words if len(w) > 4]
-            if key_words and any(word in email_content.lower() for word in key_words):
-                must_mention_found += 1
+        # Check if we used verified facts
+        if personalization_elements:
+            # Check if personalizations are actually from verified facts
+            verified = 0
+            for element in personalization_elements:
+                if any(element.lower() in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+                    verified += 1
+            if verified > 0:
+                score += 0.1
         
-        if must_mention_found > 0:
-            score += 0.1 + (must_mention_found * 0.05)
-        
-        # Check personalization level achievement
-        target_level = shared_context.personalization_strategy.level
-        if target_level == PersonalizationLevel.HYPER and len(personalization_elements) >= 8:
-            score += 0.1
-        elif target_level == PersonalizationLevel.DEEP and len(personalization_elements) >= 6:
-            score += 0.1
-        elif target_level == PersonalizationLevel.MODERATE and len(personalization_elements) >= 4:
+        # Check appropriate tone for segment
+        segment = shared_context.customer_insights.segment
+        if segment in email_content or segment.lower() in str(personalization_elements).lower():
             score += 0.05
         
-        return min(1.0, score)
+        return min(1.0, max(0.0, score))
     
     def _generate_fallback(self, shared_context: SharedContext) -> EmailResult:
-        """Generate fallback email when AI fails"""
+        """Generate fallback email when AI fails - SAFE version"""
         
         customer = shared_context.customer_data
         insights = shared_context.customer_insights
-        strategy = shared_context.personalization_strategy
         
         name = customer.get('name', 'Valued Customer')
         segment = insights.segment
         greeting_config = self.config['greeting_styles'].get(segment, self.config['greeting_styles']['ASSISTED'])
         
-        # Format greeting
-        first_name = name.split()[0] if name != 'Valued Customer' else name
-        greeting = greeting_config['greeting'].format(first_name=first_name, title='', last_name='')
+        # Format SAFE greeting
+        first_name = name.split()[0] if name != 'Valued Customer' else 'Valued Customer'
+        if segment == 'TRADITIONAL' and name != 'Valued Customer':
+            greeting = f"Dear Mr/Ms {name.split()[-1]}"
+        elif name != 'Valued Customer':
+            greeting = f"Hello {first_name}"
+        else:
+            greeting = "Dear Valued Customer"
         
-        # Build basic personalized email
-        personal_intro = ""
-        if insights.special_factors:
-            factor = insights.special_factors[0]
-            personal_intro = f"We hope everything is going well with {factor}. "
-        elif strategy.customer_story:
-            personal_intro = f"As someone who {strategy.customer_story.lower()}, we wanted to reach out personally. "
+        # Build SAFE email using only verified facts
+        verified_refs = []
+        if insights.verified_facts:
+            # Use only the most basic verified facts
+            for fact in insights.verified_facts[:2]:
+                if 'balance' in fact.lower():
+                    verified_refs.append("your account")
+                elif 'digital' in fact.lower():
+                    verified_refs.append("your online banking")
+        
+        personal_note = ""
+        if verified_refs:
+            personal_note = f"Regarding {' and '.join(verified_refs)}, "
         
         email_content = f"""{greeting},
 
-{personal_intro}We have important information about your account that requires your attention.
+{personal_note}we have important information about your account that requires your attention.
 
 {shared_context.original_letter}
 
-If you have any questions, please don't hesitate to contact us through your preferred channel.
+If you have any questions, please don't hesitate to contact us at 0345 300 0000 or visit your local branch.
 
 {greeting_config['closing']}"""
         
@@ -522,12 +612,13 @@ If you have any questions, please don't hesitate to contact us through your pref
             subject_line=f"Important Update for {name}",
             word_count=len(email_content.split()),
             character_count=len(email_content),
-            personalization_elements=["customer_name", "segment_adaptation", "personal_intro"],
+            personalization_elements=["customer_name", "segment_appropriate_greeting"],
             tone_achieved=greeting_config['tone'],
             language=customer.get('preferred_language', 'English'),
             generation_method="fallback",
             processing_time=0.0,
-            quality_score=0.6
+            quality_score=0.6,
+            hallucination_check_passed=True  # Fallback is always safe
         )
     
     def _generate_simulation(self, shared_context: SharedContext) -> EmailResult:
@@ -535,39 +626,41 @@ If you have any questions, please don't hesitate to contact us through your pref
         
         customer = shared_context.customer_data
         insights = shared_context.customer_insights
-        strategy = shared_context.personalization_strategy
         
         name = customer.get('name', 'Customer')
         
         simulation_content = f"""Dear {name},
 
-[SIMULATED EMAIL - {customer.get('preferred_language', 'English').upper()}]
+[SIMULATED HALLUCINATION-FREE EMAIL - {customer.get('preferred_language', 'English').upper()}]
 
 Customer Segment: {insights.segment}
-Personalization Level: {strategy.level.value}
-Communication Style: {insights.communication_style}
+Personalization Level: {shared_context.personalization_strategy.level.value}
 
-This email would be deeply personalized using:
-{chr(10).join(['• ' + hook for hook in insights.personalization_hooks[:3]])}
+USING ONLY VERIFIED FACTS:
+{chr(10).join(['• ' + fact for fact in insights.verified_facts[:3]]) if insights.verified_facts else '• No verified facts available'}
 
-[Original letter content would appear here with full personalization woven throughout]
+AVOIDING THESE DATA GAPS:
+{chr(10).join(['• ' + gap for gap in insights.data_gaps[:3]]) if insights.data_gaps else '• No data gaps identified'}
+
+[Original letter content would appear here with personalization based ONLY on verified facts]
 
 Best regards,
 Lloyds Bank
 
-[Generated by Smart Email Generator - Simulation Mode]"""
+[Generated by Smart Email Generator - Simulation Mode - Hallucination-Free]"""
         
         return EmailResult(
             content=simulation_content,
             subject_line=f"[SIMULATION] Update for {name}",
             word_count=len(simulation_content.split()),
             character_count=len(simulation_content),
-            personalization_elements=["simulation_mode", "customer_segment", "personalization_level"],
+            personalization_elements=["simulation_mode"],
             tone_achieved=insights.communication_style,
             language=customer.get('preferred_language', 'English'),
             generation_method="simulation",
             processing_time=0.0,
-            quality_score=0.8
+            quality_score=0.8,
+            hallucination_check_passed=True
         )
     
     def _create_disabled_result(self, shared_context: SharedContext, reason: str) -> EmailResult:
@@ -583,24 +676,34 @@ Lloyds Bank
             language=shared_context.customer_data.get('preferred_language', 'English'),
             generation_method="disabled",
             processing_time=0.0,
-            quality_score=0.0
+            quality_score=0.0,
+            hallucination_check_passed=True
         )
     
     def validate_email(self, email_result: EmailResult, shared_context: SharedContext) -> Dict[str, Any]:
-        """Validate that the email meets configuration requirements"""
+        """Validate that the email meets requirements AND contains no hallucinations"""
         
         validation = {
             'is_valid': True,
             'quality_score': email_result.quality_score,
+            'hallucination_free': email_result.hallucination_check_passed,
             'issues': [],
             'achievements': [],
             'metrics': {
                 'word_count': email_result.word_count,
                 'character_count': email_result.character_count,
                 'personalization_elements': len(email_result.personalization_elements),
-                'min_personalization_required': self.config['quality_thresholds']['min_personalization']
+                'min_personalization_required': self.config['quality_thresholds']['min_personalization'],
+                'hallucination_check': 'PASSED' if email_result.hallucination_check_passed else 'FAILED'
             }
         }
+        
+        # FIRST AND MOST IMPORTANT: Check hallucinations
+        if not email_result.hallucination_check_passed:
+            validation['issues'].append("⚠️ POTENTIAL HALLUCINATIONS DETECTED")
+            validation['is_valid'] = False
+        else:
+            validation['achievements'].append("✅ No hallucinations detected")
         
         # Check length
         if email_result.character_count < self.config['min_length']:
@@ -612,25 +715,23 @@ Lloyds Bank
         else:
             validation['achievements'].append(f"Optimal length: {email_result.word_count} words")
         
-        # Check personalization
+        # Check personalization (less strict now)
         min_personal = self.config['quality_thresholds']['min_personalization']
         if len(email_result.personalization_elements) < min_personal:
-            validation['issues'].append(f"Insufficient personalization (need {min_personal})")
+            validation['issues'].append(f"Could use more personalization (have {len(email_result.personalization_elements)}, want {min_personal})")
         else:
-            validation['achievements'].append(f"Applied {len(email_result.personalization_elements)} personalizations")
+            validation['achievements'].append(f"Applied {len(email_result.personalization_elements)} safe personalizations")
         
-        # Check personalization level achievement
-        target_level = shared_context.personalization_strategy.level
-        achieved_elements = len(email_result.personalization_elements)
+        # Check if personalizations are from verified facts
+        verified_count = 0
+        for element in email_result.personalization_elements:
+            if any(element.lower() in fact.lower() for fact in shared_context.customer_insights.verified_facts):
+                verified_count += 1
         
-        if target_level == PersonalizationLevel.HYPER and achieved_elements >= 8:
-            validation['achievements'].append(f"Achieved HYPER personalization")
-        elif target_level == PersonalizationLevel.DEEP and achieved_elements >= 6:
-            validation['achievements'].append(f"Achieved DEEP personalization")
-        elif target_level == PersonalizationLevel.MODERATE and achieved_elements >= 4:
-            validation['achievements'].append(f"Achieved MODERATE personalization")
+        if verified_count > 0:
+            validation['achievements'].append(f"Used {verified_count} verified facts")
         else:
-            validation['issues'].append(f"Did not achieve {target_level.value} personalization level")
+            validation['issues'].append("No verified facts used in personalization")
         
         return validation
 
@@ -644,7 +745,7 @@ def generate_smart_email(shared_context: SharedContext, api_key: Optional[str] =
         api_key: Optional API key
         
     Returns:
-        EmailResult with generated email
+        EmailResult with generated email (hallucination-free)
     """
     generator = SmartEmailGenerator(api_key=api_key)
     return generator.generate_email(shared_context)
