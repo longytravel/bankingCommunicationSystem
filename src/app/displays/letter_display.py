@@ -1,5 +1,6 @@
 """
 Letter Display Module - Handles all letter result display logic
+FIXED VERSION - Corrects HTML structure and text sizing
 """
 
 import streamlit as st
@@ -20,11 +21,16 @@ class LetterDisplay(BaseChannelDisplay):
             border-radius: 10px;
             padding: 30px;
             margin: 20px 0;
-            font-family: 'Arial', sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            min-height: 400px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .letter-content {
+            font-family: 'Arial', sans-serif;
+            font-size: 12px;  /* Fixed: Reduced from 11pt to 12px for better control */
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #333;
         }
         
         .letter-header {
@@ -102,14 +108,31 @@ class LetterDisplay(BaseChannelDisplay):
         """Display the letter content in a formatted preview"""
         content = getattr(result, 'content', 'No content available')
         
-        # Create a nice letter preview
+        # FIXED: Clean any stray HTML tags from content
+        content = self._clean_html_artifacts(content)
+        
+        # FIXED: Proper HTML structure with escaped content
+        import html
+        escaped_content = html.escape(content)
+        
+        # Create a nice letter preview with proper HTML structure
         st.markdown(f'''
         <div class="letter-preview">
-            <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6;">
-{content}
-            </pre>
+            <div class="letter-content">{escaped_content}</div>
         </div>
         ''', unsafe_allow_html=True)
+    
+    def _clean_html_artifacts(self, content: str) -> str:
+        """Remove any stray HTML tags from content"""
+        # Remove common HTML artifacts that might appear
+        html_tags = ['</pre>', '</div>', '<pre>', '<div>', '</p>', '<p>', 
+                     '</span>', '<span>', '```', '```html', '```css']
+        
+        cleaned_content = content
+        for tag in html_tags:
+            cleaned_content = cleaned_content.replace(tag, '')
+        
+        return cleaned_content.strip()
     
     def _display_personalization_details(self, result: Any) -> None:
         """Display personalization elements applied"""
@@ -161,6 +184,9 @@ class LetterDisplay(BaseChannelDisplay):
     def get_download_data(self, result: Any, customer_name: str) -> Tuple[str, str, str]:
         """Get download data for letter"""
         content = getattr(result, 'content', '')
+        
+        # Clean HTML artifacts before download
+        content = self._clean_html_artifacts(content)
         
         if not content:
             return "", "", ""

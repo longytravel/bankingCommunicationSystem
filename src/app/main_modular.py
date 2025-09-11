@@ -1,8 +1,7 @@
 """
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
-WITH all document intelligence, customer insights, and VOICE support
-FIXED: Using correct voice module import
+WITH all document intelligence, customer insights, VOICE support, and HALLUCINATION DETECTION
 """
 
 import streamlit as st
@@ -42,6 +41,15 @@ except Exception as e:
     print(f"❌ Core modules failed: {e}")
     st.error("Core modules not available - check installation")
     st.stop()
+
+# Try to import hallucination detector
+try:
+    from src.core.hallucination_detector import HallucinationDetector
+    HALLUCINATION_AVAILABLE = True
+    print("✅ Hallucination detector loaded")
+except ImportError:
+    HALLUCINATION_AVAILABLE = False
+    print("⚠️ Hallucination detector not available")
 
 # Try to import voice generator (use the enhanced version with audio file support)
 try:
@@ -114,9 +122,10 @@ class PersonalizationApp:
         if 'generators' not in st.session_state:
             st.session_state.generators = {}
         
-        # Initialize state variables (including voice)
+        # Initialize state variables (including voice and hallucination)
         state_vars = [
             'shared_context', 'email_result', 'sms_result', 'letter_result', 'voice_result',
+            'hallucination_result',  # Add hallucination result
             'letter_content', 'last_letter_hash', 'doc_analyzed',
             'doc_classification', 'doc_key_points'
         ]
@@ -146,6 +155,8 @@ class PersonalizationApp:
         channels = "Email • SMS • Letter"
         if VOICE_AVAILABLE:
             channels += " • Voice"
+        if HALLUCINATION_AVAILABLE:
+            channels += " • Hallucination Detection"
         
         st.markdown(f'''
         <div class="shared-brain-banner">
@@ -171,6 +182,10 @@ class PersonalizationApp:
             # Add voice if available
             if VOICE_AVAILABLE:
                 modules_status['Voice Generator'] = 'voice' in st.session_state.generators
+            
+            # Add hallucination detector status
+            if HALLUCINATION_AVAILABLE:
+                modules_status['Hallucination Detector'] = True
             
             for module, status in modules_status.items():
                 icon = "✅" if status else "❌"
@@ -216,6 +231,21 @@ class PersonalizationApp:
                 )
                 enabled = [ch for ch, en in enabled_channels.items() if en]
                 st.write(f"**Channels:** {', '.join(enabled) if enabled else 'None'}")
+                
+                # Show hallucination status if available
+                if st.session_state.hallucination_result:
+                    risk_score = safe_get_attribute(
+                        st.session_state.hallucination_result,
+                        'risk_score',
+                        0
+                    )
+                    total_findings = safe_get_attribute(
+                        st.session_state.hallucination_result,
+                        'total_hallucinations',
+                        0
+                    )
+                    st.write(f"**🚨 Hallucinations:** {total_findings}")
+                    st.write(f"**Risk Score:** {risk_score:.0%}")
     
     def handle_letter_upload(self) -> Optional[str]:
         """Handle letter file upload"""
@@ -376,7 +406,7 @@ class PersonalizationApp:
         return None
     
     def process_customer(self, letter_content: str, customer: Dict):
-        """Process customer through all channels"""
+        """Process customer through all channels and run hallucination detection"""
         try:
             with st.spinner(f"🧠 Shared Brain analyzing {customer['name']}..."):
                 # Run SharedBrain analysis
@@ -415,12 +445,48 @@ class PersonalizationApp:
                 for channel, result in results.items():
                     st.session_state[f"{channel}_result"] = result
                 
+                # RUN HALLUCINATION DETECTION ON ALL GENERATED CONTENT
+                if HALLUCINATION_AVAILABLE and results:
+                    with st.spinner("🚨 Running hallucination detection..."):
+                        # Prepare content for hallucination detection
+                        generated_content = {}
+                        for channel, result in results.items():
+                            if result and hasattr(result, 'content') and result.content:
+                                generated_content[channel] = result.content
+                        
+                        # Only run if we have content to check
+                        if generated_content:
+                            detector = HallucinationDetector()
+                            hallucination_report = detector.detect_hallucinations(
+                                generated_content=generated_content,
+                                original_letter=letter_content,
+                                customer_data=customer,
+                                shared_context=shared_context
+                            )
+                            
+                            # Store the hallucination report
+                            st.session_state.hallucination_result = hallucination_report
+                            
+                            # Log summary
+                            print(f"🚨 Hallucination Detection Complete:")
+                            print(f"   Total Findings: {hallucination_report.total_hallucinations}")
+                            print(f"   Risk Score: {hallucination_report.risk_score:.0%}")
+                            print(f"   Channels Analyzed: {', '.join(hallucination_report.channels_analyzed)}")
+                
                 processing_time = shared_context.processing_time
                 st.success(f"✅ Complete AI analysis finished in {processing_time:.1f}s!")
                 
                 # Show API calls saved if any
                 if hasattr(shared_context, 'api_calls_saved') and shared_context.api_calls_saved > 0:
                     st.info(f"💰 Saved {shared_context.api_calls_saved} API calls by reusing existing analysis")
+                
+                # Show hallucination summary if detected
+                if HALLUCINATION_AVAILABLE and st.session_state.hallucination_result:
+                    report = st.session_state.hallucination_result
+                    if report.total_hallucinations > 0:
+                        st.warning(f"🚨 Detected {report.total_hallucinations} potential hallucination(s) - Risk: {report.risk_score:.0%}")
+                    else:
+                        st.success("✅ No hallucinations detected in generated content")
                 
                 st.rerun()
                 
@@ -450,29 +516,61 @@ class PersonalizationApp:
         # Channel tabs (using modular displays)
         for i, channel_name in enumerate(CHANNEL_DISPLAYS.keys(), 1):
             with tabs[i]:
-                result = st.session_state.get(f"{channel_name}_result")
-                display = get_display_for_channel(channel_name)
-                
-                if result and display:
-                    # Display result
-                    display.display_result(result, st.session_state.shared_context)
-                    
-                    # Validation
-                    validation = display.validate_result(result, st.session_state.shared_context)
-                    display.display_validation(validation)
-                    
-                    # Download button
-                    customer_name = safe_get_attribute(
-                        st.session_state.shared_context,
-                        'customer_data.name',
-                        'Customer'
-                    )
-                    display.create_download_button(result, customer_name)
-                else:
-                    if channel_name == 'voice' and not VOICE_AVAILABLE:
-                        st.info("🎙️ Voice module not installed yet")
+                # Special handling for hallucination tab
+                if channel_name == 'hallucination':
+                    # Display hallucination report if available
+                    if st.session_state.hallucination_result:
+                        display = get_display_for_channel(channel_name)
+                        if display:
+                            display.display_result(
+                                st.session_state.hallucination_result, 
+                                st.session_state.shared_context
+                            )
+                            
+                            # Validation
+                            validation = display.validate_result(
+                                st.session_state.hallucination_result, 
+                                st.session_state.shared_context
+                            )
+                            display.display_validation(validation)
+                            
+                            # Download button
+                            customer_name = safe_get_attribute(
+                                st.session_state.shared_context,
+                                'customer_data.name',
+                                'Customer'
+                            )
+                            display.create_download_button(
+                                st.session_state.hallucination_result, 
+                                customer_name
+                            )
                     else:
-                        st.info(f"{channel_name.title()} not generated - may be disabled by rules")
+                        st.info("🚨 No hallucination analysis available yet. Generate content first.")
+                else:
+                    # Normal channel display
+                    result = st.session_state.get(f"{channel_name}_result")
+                    display = get_display_for_channel(channel_name)
+                    
+                    if result and display:
+                        # Display result
+                        display.display_result(result, st.session_state.shared_context)
+                        
+                        # Validation
+                        validation = display.validate_result(result, st.session_state.shared_context)
+                        display.display_validation(validation)
+                        
+                        # Download button
+                        customer_name = safe_get_attribute(
+                            st.session_state.shared_context,
+                            'customer_data.name',
+                            'Customer'
+                        )
+                        display.create_download_button(result, customer_name)
+                    else:
+                        if channel_name == 'voice' and not VOICE_AVAILABLE:
+                            st.info("🎙️ Voice module not installed yet")
+                        else:
+                            st.info(f"{channel_name.title()} not generated - may be disabled by rules")
         
         # Analysis tab
         with tabs[-1]:
@@ -601,6 +699,28 @@ class PersonalizationApp:
             st.markdown("**🔗 Connection Points:**")
             for key, value in connection_points.items():
                 st.write(f"• **{key}:** {value}")
+        
+        # Hallucination Analysis Summary
+        if st.session_state.hallucination_result:
+            st.markdown("---")
+            st.markdown("**🚨 Hallucination Analysis Summary:**")
+            report = st.session_state.hallucination_result
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Findings", report.total_hallucinations)
+            with col2:
+                st.metric("Risk Score", f"{report.risk_score:.0%}")
+            with col3:
+                st.metric("Confidence", f"{report.analysis_confidence:.0%}")
+            
+            if report.summary:
+                st.info(report.summary)
+            
+            if report.recommendations:
+                st.markdown("**Recommendations:**")
+                for rec in report.recommendations[:3]:
+                    st.write(f"• {rec}")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
