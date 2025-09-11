@@ -1,6 +1,6 @@
 """
 Lloyds AI Personalization Engine - Modular Version
-FIXED: Safe attribute access, compact UI, proper channel handling
+FIXED: Session state clearing, defensive attribute access, proper channel handling
 """
 
 import streamlit as st
@@ -16,6 +16,38 @@ import traceback
 
 # Load environment
 load_dotenv()
+
+# ============= CRITICAL SESSION STATE FIX =============
+# Force clear old session state if it has missing attributes
+# This fixes the customer_story and special_factors issues
+
+if 'shared_context' in st.session_state:
+    ctx = st.session_state.shared_context
+    if ctx:
+        needs_clear = False
+        
+        # Check if PersonalizationStrategy is missing customer_story
+        if hasattr(ctx, 'personalization_strategy'):
+            if not hasattr(ctx.personalization_strategy, 'customer_story'):
+                print("⚠️ OLD PersonalizationStrategy detected (missing customer_story)")
+                needs_clear = True
+        
+        # Check if CustomerInsights is missing special_factors or sensitivity_flags
+        if hasattr(ctx, 'customer_insights'):
+            if not hasattr(ctx.customer_insights, 'special_factors'):
+                print("⚠️ OLD CustomerInsights detected (missing special_factors)")
+                needs_clear = True
+            if not hasattr(ctx.customer_insights, 'sensitivity_flags'):
+                print("⚠️ OLD CustomerInsights detected (missing sensitivity_flags)")
+                needs_clear = True
+        
+        # Clear if needed
+        if needs_clear:
+            print("🔄 Clearing old session state...")
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            print("✅ Session cleared - old objects removed")
+# ============= END SESSION STATE FIX =============
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -47,7 +79,6 @@ try:
     VOICE_AVAILABLE = True
     print("✅ Voice module loaded (enhanced version with audio support)")
 except ImportError as e:
-    # Voice module not available - that's OK
     VOICE_AVAILABLE = False
     SmartVoiceGenerator = None
     print(f"⚠️ Voice module not available (this is OK): {e}")
@@ -58,6 +89,16 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
+
+# ============= MANUAL CLEAR BUTTON FOR USERS =============
+# This provides a way to manually clear session if needed
+if st.button("🔥 Clear All Session Data", key="manual_clear_top", type="secondary", 
+             help="Click this if you're getting errors about missing attributes"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.success("✅ All session data cleared! Please re-upload your files and start fresh.")
+    st.rerun()
+# ============= END MANUAL CLEAR BUTTON =============
 
 # Apply Lloyds styling with COMPACT metrics
 st.markdown("""
@@ -138,8 +179,14 @@ class PersonalizationApp:
         self.setup_generators()
     
     def initialize_session_state(self):
-        """Initialize all session state variables"""
-        if 'shared_brain' not in st.session_state:
+        """Initialize all session state variables with validation"""
+        # Check if SharedBrain needs refresh
+        if 'shared_brain' in st.session_state:
+            # Validate it's still good
+            if st.session_state.shared_brain is None and CORE_MODULES_AVAILABLE:
+                st.session_state.shared_brain = SharedBrain()
+                print("🔄 Refreshed SharedBrain")
+        else:
             st.session_state.shared_brain = SharedBrain() if CORE_MODULES_AVAILABLE else None
         
         if 'generators' not in st.session_state:
@@ -249,6 +296,21 @@ class PersonalizationApp:
                 enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
                 enabled = [ch for ch, en in enabled_channels.items() if en]
                 st.write(f"**Channels:** {', '.join(enabled) if enabled else 'None'}")
+            
+            # Add refresh button in sidebar
+            st.markdown("---")
+            if st.button("🔄 Refresh Systems", key="refresh_sidebar"):
+                if CORE_MODULES_AVAILABLE:
+                    st.session_state.shared_brain = SharedBrain()
+                    st.session_state.generators = {
+                        'email': SmartEmailGenerator(),
+                        'sms': SmartSMSGenerator(),
+                        'letter': SmartLetterGenerator()
+                    }
+                    if VOICE_AVAILABLE:
+                        st.session_state.generators['voice'] = SmartVoiceGenerator()
+                st.success("Systems refreshed!")
+                st.rerun()
     
     def handle_letter_upload(self) -> Optional[str]:
         """Handle letter file upload"""
@@ -388,8 +450,20 @@ class PersonalizationApp:
         return None
     
     def process_customer(self, letter_content: str, customer: Dict):
-        """Process customer through all channels"""
+        """Process customer through all channels with session validation"""
         try:
+            # EXTRA SAFETY: Clear old context if it exists
+            if st.session_state.shared_context:
+                old_ctx = st.session_state.shared_context
+                if hasattr(old_ctx, 'personalization_strategy'):
+                    if not hasattr(old_ctx.personalization_strategy, 'customer_story'):
+                        print("⚠️ Detected old context in process_customer - clearing")
+                        st.session_state.shared_context = None
+                        st.session_state.email_result = None
+                        st.session_state.sms_result = None
+                        st.session_state.letter_result = None
+                        st.session_state.voice_result = None
+            
             with st.spinner(f"🧠 Shared Brain analyzing {customer['name']}..."):
                 # Run SharedBrain analysis
                 shared_context = st.session_state.shared_brain.analyze_everything(
@@ -702,7 +776,12 @@ class PersonalizationApp:
                 </div>
             ''', unsafe_allow_html=True)
         
-        # Customer Profile Summary
+        # Customer Profile Summary with safe access
+        customer_story = safe_get_attribute(strategy, 'customer_story', 'No story available')
+        if customer_story and customer_story != 'No story available':
+            st.markdown("**📖 Customer Story:**")
+            st.info(customer_story)
+        
         customer_data_profile = safe_get_attribute(strategy, 'customer_data_profile', {})
         if customer_data_profile:
             st.markdown("**📋 Customer Data Profile:**")

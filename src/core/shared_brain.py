@@ -860,7 +860,7 @@ Return JSON:
         # Sensitivity flags - CRITICAL
         sensitivity_flags = []
         life_events = customer_data.get('recent_life_events', '').lower()
-        if any(word in life_events for word in ['bereavement', 'death', 'loss', 'died', 'passed away']):
+        if any(word in life_events for word in ['bereavement', 'death', 'loss', 'died', 'passed away',  'widowed', 'widow', 'widower']):
             sensitivity_flags.append("Bereavement")
         if age_val > 75:
             sensitivity_flags.append("Elderly - potential vulnerability")
