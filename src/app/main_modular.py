@@ -1,6 +1,6 @@
 """
 Lloyds AI Personalization Engine - Modular Version
-FIXED: Removed duplication, fixed indentation, cleaned up intelligence display
+FIXED: Safe attribute access, compact UI, proper channel handling
 """
 
 import streamlit as st
@@ -59,7 +59,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Apply Lloyds styling
+# Apply Lloyds styling with COMPACT metrics
 st.markdown("""
 <style>
     .main {padding-top: 1rem;}
@@ -79,15 +79,52 @@ st.markdown("""
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         border: 2px solid #006A4D;
         border-radius: 10px;
-        padding: 1.5rem;
+        padding: 1rem;
         margin: 1rem 0;
     }
     .personalization-insights {
         background: linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%);
         border: 2px solid #ff9800;
         border-radius: 10px;
-        padding: 1.5rem;
+        padding: 1rem;
         margin: 1rem 0;
+    }
+    
+    /* COMPACT METRICS STYLING */
+    .compact-metric {
+        background: white;
+        border-radius: 5px;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-left: 3px solid #006A4D;
+    }
+    .compact-metric-label {
+        color: #666;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+    .compact-metric-value {
+        color: #333;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    .sensitivity-flag {
+        background: #ffebee;
+        color: #c62828;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        margin-right: 5px;
+    }
+    .channel-enabled {
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        margin-right: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -150,7 +187,7 @@ class PersonalizationApp:
         <div class="shared-brain-banner">
             <h1>🧠 Lloyds AI Personalization Engine</h1>
             <h3>Modular Architecture • Powered by Shared Brain Intelligence</h3>
-            <p>{channels} • Anti-Hallucination Protected</p>
+            <p>{channels} • Anti-Hallucination Protected • Sensitivity Aware</p>
         </div>
         ''', unsafe_allow_html=True)
     
@@ -188,31 +225,28 @@ class PersonalizationApp:
             if st.session_state.shared_context:
                 st.markdown("---")
                 st.markdown("### 📊 Current Analysis")
-                customer_name = safe_get_attribute(
-                    st.session_state.shared_context, 
-                    'customer_data.name', 
-                    'Unknown'
-                )
-                segment = safe_get_attribute(
-                    st.session_state.shared_context,
-                    'customer_insights.segment',
-                    'Unknown'
-                )
-                confidence = safe_get_attribute(
-                    st.session_state.shared_context,
-                    'analysis_confidence',
-                    0
-                )
+                
+                ctx = st.session_state.shared_context
+                customer_name = safe_get_attribute(ctx, 'customer_data.name', 'Unknown')
+                
+                # Safe access to insights
+                if hasattr(ctx, 'customer_insights'):
+                    segment = safe_get_attribute(ctx.customer_insights, 'segment', 'Unknown')
+                    confidence = safe_get_attribute(ctx.customer_insights, 'confidence_score', 0)
+                    sensitivity_flags = safe_get_attribute(ctx.customer_insights, 'sensitivity_flags', [])
+                else:
+                    segment = 'Unknown'
+                    confidence = 0
+                    sensitivity_flags = []
                 
                 st.write(f"**Customer:** {customer_name}")
                 st.write(f"**Segment:** {segment}")
-                st.write(f"**Quality:** {confidence:.0%}")
+                st.write(f"**Confidence:** {confidence:.0%}")
                 
-                enabled_channels = safe_get_attribute(
-                    st.session_state.shared_context,
-                    'channel_decisions.enabled_channels',
-                    {}
-                )
+                if sensitivity_flags:
+                    st.write(f"**⚠️ Sensitivity:** {', '.join(sensitivity_flags)}")
+                
+                enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
                 enabled = [ch for ch, en in enabled_channels.items() if en]
                 st.write(f"**Channels:** {', '.join(enabled) if enabled else 'None'}")
     
@@ -407,7 +441,7 @@ class PersonalizationApp:
             traceback.print_exc()
     
     def display_intelligence(self):
-        """Display CLEANED SharedBrain intelligence - NO DUPLICATION"""
+        """Display COMPACT SharedBrain intelligence"""
         if not st.session_state.shared_context:
             return
         
@@ -418,96 +452,122 @@ class PersonalizationApp:
         st.markdown('<div class="intelligence-card">', unsafe_allow_html=True)
         st.markdown("### 🧠 Shared Brain Intelligence")
         
-        # Core metrics
+        # COMPACT METRICS using custom HTML instead of st.metric
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Customer Segment", safe_get_attribute(insights, 'segment', 'Unknown'))
-            st.metric("Confidence", f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
+            segment = safe_get_attribute(insights, 'segment', 'Unknown')
+            confidence = safe_get_attribute(insights, 'confidence_score', 0)
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Customer Segment</div>
+                    <div class="compact-metric-value">{segment}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Confidence</div>
+                    <div class="compact-metric-value">{confidence:.0%}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         with col2:
             life_stage = safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()
-            st.metric("Life Stage", life_stage)
             digital_persona = safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()
-            st.metric("Digital Persona", digital_persona)
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Life Stage</div>
+                    <div class="compact-metric-value">{life_stage}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Digital Persona</div>
+                    <div class="compact-metric-value">{digital_persona}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         with col3:
             financial_profile = safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()
-            st.metric("Financial Profile", financial_profile)
             communication_style = safe_get_attribute(insights, 'communication_style', 'unknown').title()
-            st.metric("Communication Style", communication_style)
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Financial Profile</div>
+                    <div class="compact-metric-value">{financial_profile}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Communication Style</div>
+                    <div class="compact-metric-value">{communication_style}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         with col4:
             level = safe_get_attribute(strategy, 'level.value', 'basic').upper()
-            st.metric("Personalization Level", level)
             processing_time = ctx.processing_time
-            st.metric("Processing Time", f"{processing_time:.1f}s")
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Personalization Level</div>
+                    <div class="compact-metric-value">{level}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Processing Time</div>
+                    <div class="compact-metric-value">{processing_time:.1f}s</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
-        # MAIN CONTENT SECTIONS - CLEANED UP, NO DUPLICATION
+        # Sensitivity Flags (if any)
+        sensitivity_flags = safe_get_attribute(insights, 'sensitivity_flags', [])
+        if sensitivity_flags:
+            st.markdown("**⚠️ Sensitivity Detected:**")
+            flags_html = ''.join([f'<span class="sensitivity-flag">{flag}</span>' for flag in sensitivity_flags])
+            st.markdown(flags_html, unsafe_allow_html=True)
         
-        # 1. Verified Customer Facts (Primary source of truth)
+        # MAIN CONTENT SECTIONS
+        
+        # 1. Verified Customer Facts
         verified_facts = safe_get_attribute(insights, 'verified_facts', [])
         if verified_facts:
             with st.expander("✅ Verified Customer Facts", expanded=True):
                 for i, fact in enumerate(verified_facts[:10], 1):
                     st.write(f"{i}. {fact}")
         
-        # 2. Behavioral Patterns (Inferred from data)
-        behavioral_patterns = safe_get_attribute(insights, 'behavioral_patterns', [])
-        if behavioral_patterns:
-            with st.expander("📊 Behavioral Patterns", expanded=False):
-                for pattern in behavioral_patterns:
-                    st.write(f"• {pattern}")
-        
-        # 3. Special Factors (Important circumstances)
+        # 2. Special Factors - SAFE ACCESS
         special_factors = safe_get_attribute(insights, 'special_factors', [])
         if special_factors:
             with st.expander("🌟 Special Factors", expanded=False):
                 for factor in special_factors:
                     st.write(f"• {factor}")
         
-        # 4. Data Gaps (What we're avoiding)
+        # 3. Behavioral Patterns
+        behavioral_patterns = safe_get_attribute(insights, 'behavioral_patterns', [])
+        if behavioral_patterns:
+            with st.expander("📊 Behavioral Patterns", expanded=False):
+                for pattern in behavioral_patterns:
+                    st.write(f"• {pattern}")
+        
+        # 4. Data Gaps
         data_gaps = safe_get_attribute(insights, 'data_gaps', [])
         if data_gaps:
-            with st.expander("⚠️ Data Not Available (Avoided in Personalization)", expanded=False):
+            with st.expander("⚠️ Data Not Available", expanded=False):
                 for gap in data_gaps[:5]:
                     st.write(f"• {gap}")
         
-        # 5. Safe References and Forbidden Items
-        col_safe, col_forbidden = st.columns(2)
-        
-        with col_safe:
-            verified_refs = safe_get_attribute(strategy, 'verified_references', [])
-            if verified_refs:
-                with st.expander("✅ Safe to Reference", expanded=False):
-                    for ref in verified_refs[:5]:
-                        st.write(f"• {ref}")
-        
-        with col_forbidden:
-            forbidden = safe_get_attribute(strategy, 'forbidden_specifics', [])
-            if forbidden:
-                with st.expander("🚫 Forbidden (Not to Invent)", expanded=False):
-                    for item in forbidden[:5]:
-                        st.write(f"• {item}")
-        
-        # 6. Pattern Language (How we handle missing data)
-        pattern_language = safe_get_attribute(strategy, 'pattern_language', {})
-        if pattern_language:
-            with st.expander("🔄 Safe Language Patterns", expanded=False):
-                for original, replacement in pattern_language.items():
-                    st.write(f"• Instead of {original}: **{replacement}**")
-        
-        # 7. Channel Decisions
-        with st.expander("📺 Channel Decisions", expanded=False):
+        # 5. Channel Decisions with visual indicators
+        with st.expander("📺 Channel Decisions", expanded=True):
             enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
             channel_reasons = safe_get_attribute(ctx, 'channel_decisions.reasons', {})
             
+            # Show enabled channels as badges
+            enabled_html = ''.join([
+                f'<span class="channel-enabled">{ch.upper()}</span>' 
+                for ch, en in enabled_channels.items() if en
+            ])
+            if enabled_html:
+                st.markdown("**Enabled:** " + enabled_html, unsafe_allow_html=True)
+            
+            # Show reasons
             for channel, enabled in enabled_channels.items():
-                status = "✅ Enabled" if enabled else "❌ Disabled"
+                status = "✅" if enabled else "❌"
                 reason = channel_reasons.get(channel, "No reason provided")
                 st.write(f"**{channel.upper()}:** {status} - {reason}")
         
-        # 8. Hallucination Check Status
+        # 6. Hallucination Check Status
         hallucination_passed = safe_get_attribute(ctx, 'hallucination_check_passed', True)
         if hallucination_passed:
             st.success("🛡️ Anti-Hallucination Check: PASSED")
@@ -542,32 +602,50 @@ class PersonalizationApp:
                 display = get_display_for_channel(channel_name)
                 
                 if result and display:
-                    # Display result
-                    display.display_result(result, st.session_state.shared_context)
-                    
-                    # Validation
-                    validation = display.validate_result(result, st.session_state.shared_context)
-                    display.display_validation(validation)
-                    
-                    # Download button
-                    customer_name = safe_get_attribute(
-                        st.session_state.shared_context,
-                        'customer_data.name',
-                        'Customer'
-                    )
-                    display.create_download_button(result, customer_name)
+                    try:
+                        # Display result
+                        display.display_result(result, st.session_state.shared_context)
+                        
+                        # Validation
+                        validation = display.validate_result(result, st.session_state.shared_context)
+                        display.display_validation(validation)
+                        
+                        # Download button
+                        customer_name = safe_get_attribute(
+                            st.session_state.shared_context,
+                            'customer_data.name',
+                            'Customer'
+                        )
+                        display.create_download_button(result, customer_name)
+                    except Exception as e:
+                        st.error(f"Error displaying {channel_name}: {str(e)}")
                 else:
-                    if channel_name == 'voice' and not VOICE_AVAILABLE:
-                        st.info("🎙️ Voice module not installed yet")
+                    # Check if disabled by rules
+                    enabled_channels = safe_get_attribute(
+                        st.session_state.shared_context,
+                        'channel_decisions.enabled_channels',
+                        {}
+                    )
+                    reasons = safe_get_attribute(
+                        st.session_state.shared_context,
+                        'channel_decisions.reasons',
+                        {}
+                    )
+                    
+                    if channel_name in enabled_channels and not enabled_channels[channel_name]:
+                        reason = reasons.get(channel_name, "Disabled by rules")
+                        st.info(f"📵 {channel_name.title()} disabled: {reason}")
+                    elif channel_name == 'voice' and not VOICE_AVAILABLE:
+                        st.info("🎙️ Voice module not installed")
                     else:
-                        st.info(f"{channel_name.title()} not generated - may be disabled by rules")
+                        st.warning(f"{channel_name.title()} not generated")
         
         # Analysis tab
         with tabs[-1]:
             self.display_analysis()
     
     def display_analysis(self):
-        """Display deep personalization analysis"""
+        """Display deep personalization analysis - SAFE ACCESS"""
         if not st.session_state.shared_context:
             st.info("No analysis available yet")
             return
@@ -579,20 +657,50 @@ class PersonalizationApp:
         st.markdown('<div class="personalization-insights">', unsafe_allow_html=True)
         st.markdown("### 🎯 Deep Personalization Analysis")
         
-        # Summary metrics
+        # Summary metrics with safe access
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Total Verified Facts", len(insights.verified_facts))
-            st.metric("Behavioral Patterns", len(insights.behavioral_patterns))
+            verified_facts = safe_get_attribute(insights, 'verified_facts', [])
+            behavioral_patterns = safe_get_attribute(insights, 'behavioral_patterns', [])
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Verified Facts</div>
+                    <div class="compact-metric-value">{len(verified_facts)}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Behavioral Patterns</div>
+                    <div class="compact-metric-value">{len(behavioral_patterns)}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         with col2:
-            st.metric("Special Factors", len(insights.special_factors))
-            st.metric("Data Gaps Identified", len(insights.data_gaps))
+            special_factors = safe_get_attribute(insights, 'special_factors', [])
+            data_gaps = safe_get_attribute(insights, 'data_gaps', [])
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Special Factors</div>
+                    <div class="compact-metric-value">{len(special_factors)}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Data Gaps</div>
+                    <div class="compact-metric-value">{len(data_gaps)}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         with col3:
-            st.metric("Safe References", len(strategy.verified_references))
-            st.metric("Forbidden Items", len(strategy.forbidden_specifics))
+            verified_references = safe_get_attribute(strategy, 'verified_references', [])
+            forbidden_specifics = safe_get_attribute(strategy, 'forbidden_specifics', [])
+            st.markdown(f'''
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Safe References</div>
+                    <div class="compact-metric-value">{len(verified_references)}</div>
+                </div>
+                <div class="compact-metric">
+                    <div class="compact-metric-label">Forbidden Items</div>
+                    <div class="compact-metric-value">{len(forbidden_specifics)}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
         # Customer Profile Summary
         customer_data_profile = safe_get_attribute(strategy, 'customer_data_profile', {})
@@ -623,6 +731,15 @@ class PersonalizationApp:
                 st.write(f"• Warmth: {tone_guidelines.get('warmth_level', 'N/A')}")
                 st.write(f"• Energy: {tone_guidelines.get('energy_level', 'N/A')}")
         
+        # Sensitivity Adjustments
+        sensitivity_adjustments = safe_get_attribute(strategy, 'sensitivity_adjustments', {})
+        if sensitivity_adjustments:
+            st.markdown("**💝 Sensitivity Adjustments:**")
+            if sensitivity_adjustments.get('greeting_style'):
+                st.write(f"• Greeting: {sensitivity_adjustments['greeting_style']}")
+            if sensitivity_adjustments.get('special_considerations'):
+                st.write(f"• Considerations: {sensitivity_adjustments['special_considerations']}")
+        
         st.markdown('</div>', unsafe_allow_html=True)
     
     def run(self):
@@ -650,21 +767,24 @@ class PersonalizationApp:
                 
                 if customer_file:
                     # Load customers
-                    if customer_file.type == 'text/csv':
-                        customers_df = pd.read_csv(customer_file)
-                    else:
-                        customers_df = pd.read_excel(customer_file)
-                    
-                    st.success(f"Loaded {len(customers_df)} customers")
-                    
-                    # Select customer
-                    st.subheader("3. Select Customer")
-                    selected_customer = self.handle_customer_selection(customers_df)
-                    
-                    if selected_customer:
-                        # Process button
-                        if st.button("🧠 Analyze with Shared Brain", type="primary", use_container_width=True):
-                            self.process_customer(letter_content, selected_customer)
+                    try:
+                        if customer_file.type == 'text/csv':
+                            customers_df = pd.read_csv(customer_file)
+                        else:
+                            customers_df = pd.read_excel(customer_file)
+                        
+                        st.success(f"Loaded {len(customers_df)} customers")
+                        
+                        # Select customer
+                        st.subheader("3. Select Customer")
+                        selected_customer = self.handle_customer_selection(customers_df)
+                        
+                        if selected_customer:
+                            # Process button
+                            if st.button("🧠 Analyze with Shared Brain", type="primary", use_container_width=True):
+                                self.process_customer(letter_content, selected_customer)
+                    except Exception as e:
+                        st.error(f"Error loading customers: {str(e)}")
         
         with col2:
             st.header("🎯 AI Intelligence & Results")
