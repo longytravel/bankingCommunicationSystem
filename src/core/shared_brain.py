@@ -1,6 +1,6 @@
 """
 Shared Brain - Central Intelligence for Multi-Channel Personalization
-FIXED: Prevents ALL hallucinations through strict data-driven constraints
+FIXED: Added special_factors, proper rules engine integration, channel decisions
 """
 
 import os
@@ -104,7 +104,7 @@ class PersonalizationLevel(Enum):
 
 @dataclass
 class CustomerInsights:
-    """AI-driven customer analysis - FACTS ONLY"""
+    """AI-driven customer analysis - FACTS ONLY - FIXED with special_factors"""
     segment: str              # DIGITAL, ASSISTED, TRADITIONAL
     life_stage: str          # young_adult, family_building, pre_retirement, etc
     digital_persona: str     # app_native, hybrid_user, traditional_preferred
@@ -112,14 +112,22 @@ class CustomerInsights:
     communication_style: str # formal, friendly, warm, professional
     verified_facts: List[str] # ONLY things we know for certain from data
     behavioral_patterns: List[str] # Patterns inferred from data
-    data_gaps: List[str]     # What we DON'T know (to avoid inventing)
-    confidence_score: float  # How confident we are in this analysis
+    special_factors: List[str] = None # FIXED: Added with default - special circumstances or needs
+    data_gaps: List[str] = None     # What we DON'T know (to avoid inventing)
+    confidence_score: float = 0.7  # How confident we are in this analysis
+    
+    def __post_init__(self):
+        """Ensure lists are never None"""
+        if self.special_factors is None:
+            self.special_factors = []
+        if self.data_gaps is None:
+            self.data_gaps = []
 
 @dataclass
 class PersonalizationStrategy:
     """The master plan for personalizing content - NO FICTION"""
     level: PersonalizationLevel
-    customer_data_profile: Dict[str, Any]  # REPLACED customer_story with facts-only profile
+    customer_data_profile: Dict[str, Any]  # Facts-only profile
     tone_guidelines: Dict[str, str]
     verified_references: List[str]  # Things we CAN mention (from data)
     forbidden_specifics: List[str]  # Things we must NOT invent
@@ -159,12 +167,12 @@ class SharedContext:
     processing_time: float
     ai_model_used: str
     api_calls_saved: int  # Track saved API calls
-    hallucination_check_passed: bool  # NEW: Track if we passed anti-hallucination checks
+    hallucination_check_passed: bool  # Track if we passed anti-hallucination checks
 
 class SharedBrain:
     """
     The all-powerful AI brain that creates consistent, deeply personalized context
-    FIXED: Now prevents ALL hallucinations through strict constraints
+    FIXED: Proper rules engine integration and special_factors support
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -199,7 +207,7 @@ class SharedBrain:
     ) -> SharedContext:
         """
         THE MAIN METHOD: Analyze everything and create the shared context
-        FIXED: Now includes hallucination prevention at every step
+        FIXED: Proper rules engine integration for channel decisions
         """
         
         start_time = datetime.now()
@@ -250,109 +258,15 @@ class SharedBrain:
             letter_content
         )
         
-        # STEP 6: Channel Decisions WITH VOICE
-        print("  📺 Making channel decisions (including voice)...")
-        
-        # Build comprehensive context for rules evaluation
-        rules_context = {
-            'customer': customer_data,
-            'document': {
-                'type': document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL'),
-                'urgency': document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM'),
-                'compliance_required': document_classification.compliance_required if hasattr(document_classification, 'compliance_required') else document_classification.get('compliance_required', False),
-                'customer_action_required': document_classification.customer_action_required if hasattr(document_classification, 'customer_action_required') else document_classification.get('customer_action_required', False)
-            },
-            'insights': {
-                'segment': customer_insights.segment,
-                'life_stage': customer_insights.life_stage,
-                'digital_persona': customer_insights.digital_persona,
-                'financial_profile': customer_insights.financial_profile,
-                'verified_facts': customer_insights.verified_facts
-            }
-        }
-        
-        # Initialize channel decisions
-        channel_decisions = {
-            'enabled_channels': {
-                'email': False,
-                'sms': False,
-                'letter': False,
-                'voice': False
-            },
-            'reasons': {
-                'email': 'Not evaluated',
-                'sms': 'Not evaluated',
-                'letter': 'Not evaluated',
-                'voice': 'Not evaluated'
-            }
-        }
-        
-        # Use rules engine to determine channel eligibility
-        if self.communication_rules:
-            print("    Using rules engine for channel decisions...")
-            
-            # Evaluate all channel eligibility rules
-            channel_rules_result = self.communication_rules.evaluate(rules_context, tags=['channel_eligibility'])
-            
-            # Process the features that were enabled/disabled
-            features = channel_rules_result.get('features', {})
-            
-            # Check each channel
-            for channel in ['email', 'sms', 'letter', 'voice_note']:
-                # Map voice_note to voice for consistency
-                channel_key = 'voice' if channel == 'voice_note' else channel
-                
-                if channel in features:
-                    channel_decisions['enabled_channels'][channel_key] = features[channel]
-                    
-                    # Get the reason from metadata
-                    metadata = channel_rules_result.get('metadata', {})
-                    if 'reason' in metadata and channel == 'voice_note':  # Voice note gets special reason
-                        channel_decisions['reasons'][channel_key] = metadata['reason']
-                    else:
-                        # Find triggered rules for this channel
-                        triggered_rules = channel_rules_result.get('triggered_rules', [])
-                        if triggered_rules:
-                            channel_decisions['reasons'][channel_key] = f"Enabled by rules: {', '.join(triggered_rules[:2])}"
-                        else:
-                            channel_decisions['reasons'][channel_key] = "Enabled by rules engine"
-            
-            # Store voice metadata if available
-            if 'voice_note' in features and features['voice_note']:
-                metadata = channel_rules_result.get('metadata', {})
-                if 'voice_style' in metadata:
-                    channel_decisions['voice_style'] = metadata['voice_style']
-                if 'voice_speed' in metadata:
-                    channel_decisions['voice_speed'] = metadata['voice_speed']
-            
-            print(f"    Rules evaluation complete. Triggered rules: {channel_rules_result.get('triggered_rules', [])}")
-            
-        else:
-            print("    ⚠️ No rules engine available - using fallback defaults")
-            # Fallback if no rules engine
-            channel_decisions['enabled_channels']['email'] = True
-            channel_decisions['reasons']['email'] = 'Default channel (no rules engine)'
-            
-            # Basic fallback logic
-            if customer_insights.segment == 'DIGITAL':
-                channel_decisions['enabled_channels']['sms'] = True
-                channel_decisions['reasons']['sms'] = 'Digital segment (fallback)'
-            
-            if customer_insights.segment in ['TRADITIONAL', 'ASSISTED']:
-                channel_decisions['enabled_channels']['letter'] = True
-                channel_decisions['reasons']['letter'] = 'Traditional/Assisted segment (fallback)'
-        
-        # Force channels if requested (override rules)
-        if force_channels:
-            for channel in force_channels:
-                channel_decisions['enabled_channels'][channel] = True
-                channel_decisions['reasons'][channel] = f"Forced by user request (original: {channel_decisions['reasons'].get(channel, 'N/A')})"
-        
-        # Log the final decisions
-        enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
-        print(f"    Final enabled channels: {enabled}")
-        for channel in enabled:
-            print(f"      - {channel}: {channel_decisions['reasons'][channel]}")
+        # STEP 6: Channel Decisions - PROPERLY RESPECT RULES ENGINE
+        print("  📺 Making channel decisions using rules engine...")
+        channel_decisions = self._make_channel_decisions(
+            customer_data,
+            document_classification,
+            customer_insights,
+            rules_evaluation,
+            force_channels
+        )
         
         # STEP 7: Hallucination Check
         hallucination_check = self._validate_no_hallucinations(
@@ -384,23 +298,144 @@ class SharedBrain:
             processing_time=processing_time,
             ai_model_used=self.model if self.client else "simulation",
             api_calls_saved=api_calls_saved,
-            hallucination_check_passed=hallucination_check  # NEW field
+            hallucination_check_passed=hallucination_check
         )
         
+        # Log summary
+        enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
         print(f"✅ Shared Brain analysis complete in {processing_time:.2f}s")
         if api_calls_saved > 0:
             print(f"   💰 Saved {api_calls_saved} API calls by reusing existing analysis")
         print(f"   Customer Segment: {customer_insights.segment}")
         print(f"   Personalization Level: {personalization_strategy.level.value}")
         print(f"   🛡️ Hallucination Check: {'PASSED' if hallucination_check else 'FAILED'}")
-        
-        # Show enabled channels including voice
-        enabled = [ch for ch, en in channel_decisions['enabled_channels'].items() if en]
         print(f"   Enabled Channels: {enabled}")
-        if channel_decisions['enabled_channels'].get('voice'):
-            print(f"   🎙️ Voice enabled: {channel_decisions['reasons']['voice']}")
         
         return shared_context
+    
+    def _make_channel_decisions(
+        self,
+        customer_data: Dict[str, Any],
+        document_classification,
+        customer_insights: CustomerInsights,
+        rules_evaluation: Dict[str, Any],
+        force_channels: Optional[List[str]]
+    ) -> Dict[str, Any]:
+        """
+        Make channel decisions properly using rules engine
+        FIXED: Respect rules engine decisions, don't force email
+        """
+        
+        # Initialize with all channels disabled
+        channel_decisions = {
+            'enabled_channels': {
+                'email': False,
+                'sms': False,
+                'letter': False,
+                'voice': False
+            },
+            'reasons': {
+                'email': 'Not evaluated',
+                'sms': 'Not evaluated',
+                'letter': 'Not evaluated',
+                'voice': 'Not evaluated'
+            }
+        }
+        
+        # Build context for rules evaluation
+        rules_context = {
+            'customer': customer_data,
+            'document': {
+                'type': document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL'),
+                'urgency': document_classification.urgency_level if hasattr(document_classification, 'urgency_level') else document_classification.get('urgency_level', 'MEDIUM'),
+                'compliance_required': document_classification.compliance_required if hasattr(document_classification, 'compliance_required') else document_classification.get('compliance_required', False),
+                'customer_action_required': document_classification.customer_action_required if hasattr(document_classification, 'customer_action_required') else document_classification.get('customer_action_required', False)
+            },
+            'insights': {
+                'segment': customer_insights.segment,
+                'life_stage': customer_insights.life_stage,
+                'digital_persona': customer_insights.digital_persona,
+                'financial_profile': customer_insights.financial_profile,
+                'verified_facts': customer_insights.verified_facts,
+                'special_factors': customer_insights.special_factors
+            }
+        }
+        
+        # Try to use rules engine
+        if self.communication_rules:
+            try:
+                print("    Using communication rules engine...")
+                channel_rules_result = self.communication_rules.evaluate(rules_context, tags=['channel_eligibility'])
+                
+                features = channel_rules_result.get('features', {})
+                triggered_rules = channel_rules_result.get('triggered_rules', [])
+                
+                print(f"    Triggered rules: {triggered_rules}")
+                print(f"    Features from rules: {features}")
+                
+                # Map rules engine output to our channel decisions
+                channel_mapping = {
+                    'email': 'email',
+                    'sms': 'sms',
+                    'letter': 'letter',
+                    'voice_note': 'voice'
+                }
+                
+                for rule_channel, our_channel in channel_mapping.items():
+                    if rule_channel in features:
+                        enabled = features[rule_channel]
+                        channel_decisions['enabled_channels'][our_channel] = enabled
+                        
+                        if enabled:
+                            channel_decisions['reasons'][our_channel] = f"Enabled by rules: {', '.join(triggered_rules[:2])}" if triggered_rules else "Enabled by rules"
+                        else:
+                            channel_decisions['reasons'][our_channel] = "Disabled by rules evaluation"
+                    else:
+                        # Not in features means not evaluated by rules - use defaults
+                        print(f"    Channel {rule_channel} not in rules output")
+                
+            except Exception as e:
+                print(f"    ❌ Rules engine error: {e}")
+                print("    Falling back to segment-based defaults")
+                self._apply_segment_defaults(channel_decisions, customer_insights.segment)
+        else:
+            print("    ⚠️ No rules engine available - using segment-based defaults")
+            self._apply_segment_defaults(channel_decisions, customer_insights.segment)
+        
+        # Apply forced channels if specified
+        if force_channels:
+            for channel in force_channels:
+                channel_decisions['enabled_channels'][channel] = True
+                channel_decisions['reasons'][channel] = f"Forced by user request (override)"
+                print(f"    Force-enabled {channel}")
+        
+        # Safety check: If NO channels are enabled, enable email as fallback
+        if not any(channel_decisions['enabled_channels'].values()):
+            print("    ⚠️ WARNING: No channels enabled - enabling email as safety fallback")
+            channel_decisions['enabled_channels']['email'] = True
+            channel_decisions['reasons']['email'] = 'Enabled as safety fallback (no other channels)'
+        
+        return channel_decisions
+    
+    def _apply_segment_defaults(self, channel_decisions: Dict, segment: str):
+        """Apply segment-based channel defaults when rules engine unavailable"""
+        print(f"    Applying defaults for segment: {segment}")
+        
+        if segment == 'DIGITAL':
+            channel_decisions['enabled_channels']['email'] = True
+            channel_decisions['enabled_channels']['sms'] = True
+            channel_decisions['reasons']['email'] = 'Digital segment default'
+            channel_decisions['reasons']['sms'] = 'Digital segment default'
+        elif segment == 'TRADITIONAL':
+            channel_decisions['enabled_channels']['letter'] = True
+            channel_decisions['enabled_channels']['email'] = True
+            channel_decisions['reasons']['letter'] = 'Traditional segment default'
+            channel_decisions['reasons']['email'] = 'Traditional segment standard'
+        else:  # ASSISTED
+            channel_decisions['enabled_channels']['email'] = True
+            channel_decisions['enabled_channels']['letter'] = True
+            channel_decisions['reasons']['email'] = 'Assisted segment default'
+            channel_decisions['reasons']['letter'] = 'Assisted segment default'
     
     def _simulate_classification(self):
         """Fallback classification when classifier not available"""
@@ -419,8 +454,7 @@ class SharedBrain:
         document_classification
     ) -> CustomerInsights:
         """
-        AI-POWERED deep customer analysis - FIXED to prevent hallucinations
-        This builds customer insights from ONLY verified data
+        AI-POWERED deep customer analysis - FIXED with special_factors always included
         """
         
         if not self.client:
@@ -444,7 +478,7 @@ CUSTOMER DATA:
 DOCUMENT CONTEXT:
 {document_context}
 
-Perform analysis and return insights in this exact JSON format:
+Provide a detailed analysis in the following JSON format:
 
 {{
     "segment": "DIGITAL|ASSISTED|TRADITIONAL",
@@ -454,25 +488,37 @@ Perform analysis and return insights in this exact JSON format:
     "communication_style": "formal|friendly|warm|professional|respectful",
     "verified_facts": [
         "ONLY list facts that are explicitly in the data",
-        "e.g., 'Has account balance of £X'",
-        "e.g., 'Logs in X times per month'",
+        "e.g., 'Age is X years old'",
+        "e.g., 'Account balance is £X'",
+        "e.g., 'X-year customer relationship'",
         "DO NOT make up any facts"
     ],
     "behavioral_patterns": [
         "Patterns you can infer from the numbers",
-        "e.g., 'Regular digital user' if logins > 20",
-        "e.g., 'Branch visitor' if visits > 0"
+        "e.g., 'Highly dependent on assisted channels' if branch visits + phone calls > 5",
+        "e.g., 'Regular branch visitor' if visits > 0",
+        "e.g., 'Minimal digital engagement' if logins = 0"
+    ],
+    "special_factors": [
+        "Any special circumstances or needs identified",
+        "e.g., 'Visual impairment noted' if accessibility_needs mentions it",
+        "e.g., 'Recent life event: X' if recent_life_events has data",
+        "e.g., 'Prefers traditional banking methods' if no digital usage",
+        "e.g., 'Senior customer requiring extra support' if age > 70",
+        "Only include if supported by data"
     ],
     "data_gaps": [
         "Things we DON'T know about this customer",
-        "e.g., 'No branch preference data'",
-        "e.g., 'No previous conversation history'"
+        "e.g., 'No income information'",
+        "e.g., 'No spending patterns'",
+        "e.g., 'No preferred branch location'"
     ],
     "confidence_score": 0.0-1.0,
     "reasoning": "brief explanation of your analysis"
 }}
 
 CRITICAL RULES:
+- ALWAYS include special_factors array (even if empty)
 - NEVER invent staff names, branch names, or specific locations
 - NEVER reference conversations or meetings not in the data
 - NEVER assume preferences not explicitly stated
@@ -485,7 +531,7 @@ Analyze this customer now:"""
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2000,
-                temperature=0.3,  # Lower temperature for more consistency
+                temperature=0.3,
                 messages=[{"role": "user", "content": analysis_prompt}]
             )
             
@@ -506,6 +552,7 @@ Analyze this customer now:"""
                     communication_style=analysis_data.get('communication_style', 'professional'),
                     verified_facts=analysis_data.get('verified_facts', []),
                     behavioral_patterns=analysis_data.get('behavioral_patterns', []),
+                    special_factors=analysis_data.get('special_factors', []),  # Will never be None due to __post_init__
                     data_gaps=analysis_data.get('data_gaps', []),
                     confidence_score=float(analysis_data.get('confidence_score', 0.7))
                 )
@@ -534,6 +581,9 @@ Analyze this customer now:"""
         doc_type = document_classification.primary_classification if hasattr(document_classification, 'primary_classification') else document_classification.get('primary_classification', 'INFORMATIONAL')
         doc_tone = document_classification.tone if hasattr(document_classification, 'tone') else document_classification.get('tone', 'FORMAL')
         
+        # Ensure special_factors is never None
+        special_factors = customer_insights.special_factors if customer_insights.special_factors else []
+        
         strategy_prompt = f"""{UNIVERSAL_CONSTRAINTS}
 
 You are a master personalization strategist for banking communications. Create a personalization strategy using ONLY verified data.
@@ -546,6 +596,7 @@ CUSTOMER INSIGHTS:
 - Communication Style: {customer_insights.communication_style}
 - Verified Facts: {', '.join(customer_insights.verified_facts[:5]) if customer_insights.verified_facts else 'None'}
 - Known Patterns: {', '.join(customer_insights.behavioral_patterns[:5]) if customer_insights.behavioral_patterns else 'None'}
+- Special Factors: {', '.join(special_factors[:3]) if special_factors else 'None'}
 - Data Gaps: {', '.join(customer_insights.data_gaps[:3]) if customer_insights.data_gaps else 'None'}
 
 DOCUMENT TYPE: {doc_type}
@@ -559,7 +610,7 @@ Create a data-driven personalization strategy in this JSON format:
 {{
     "level": "BASIC|MODERATE|DEEP|HYPER",
     "customer_data_profile": {{
-        "known_attributes": ["list what we know"],
+        "known_attributes": ["list verified facts we can use"],
         "behavioral_patterns": ["patterns from data"],
         "segment_characteristics": ["general traits of their segment"],
         "missing_data": ["what we don't know"]
@@ -572,18 +623,19 @@ Create a data-driven personalization strategy in this JSON format:
     }},
     "verified_references": [
         "Things we CAN mention because they're in the data",
+        "e.g., 'Your X-year relationship with us'",
         "e.g., 'Your account balance'",
-        "e.g., 'Your digital banking usage'"
+        "e.g., 'Our telephone banking service'"
     ],
     "forbidden_specifics": [
         "Things we must NOT invent",
-        "e.g., 'Specific branch names'",
+        "e.g., 'Specific branch locations'",
         "e.g., 'Staff member names'",
         "e.g., 'Previous conversations'"
     ],
     "pattern_language": {{
         "instead_of_branch_name": "your local branch",
-        "instead_of_staff_name": "our team",
+        "instead_of_staff_name": "our banking team",
         "instead_of_specific_date": "recently",
         "instead_of_conversation": "our records show"
     }},
@@ -608,7 +660,7 @@ Create the strategy now:"""
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2500,
-                temperature=0.4,  # Lower for consistency
+                temperature=0.4,
                 messages=[{"role": "user", "content": strategy_prompt}]
             )
             
@@ -644,7 +696,7 @@ Create the strategy now:"""
         customer_data: Dict[str, Any]
     ) -> bool:
         """
-        NEW METHOD: Validate that no hallucinations will occur
+        Validate that no hallucinations will occur
         Returns True if safe, False if risk detected
         """
         
@@ -760,7 +812,8 @@ Create the strategy now:"""
             'insights': {
                 'segment': customer_insights.segment,
                 'digital_persona': customer_insights.digital_persona,
-                'verified_facts': customer_insights.verified_facts  # Use facts not fiction
+                'verified_facts': customer_insights.verified_facts,
+                'special_factors': customer_insights.special_factors  # Include special_factors
             }
         }
         
@@ -847,7 +900,7 @@ Create the strategy now:"""
         return round(overall, 3)
     
     def _simulate_customer_insights(self, customer_data: Dict[str, Any]) -> CustomerInsights:
-        """Simulation fallback for customer insights - NO HALLUCINATIONS"""
+        """Simulation fallback for customer insights - FIXED with special_factors always included"""
         
         # Simple rule-based simulation
         digital_logins = customer_data.get('digital_logins_per_month', 0)
@@ -874,36 +927,69 @@ Create the strategy now:"""
         
         # Build verified facts from actual data
         verified_facts = []
-        if customer_data.get('name'):
-            verified_facts.append(f"Customer name: {customer_data['name']}")
+        if customer_data.get('age'):
+            verified_facts.append(f"Age is {customer_data['age']} years old")
         if customer_data.get('account_balance') is not None:
-            verified_facts.append(f"Account balance: £{customer_data['account_balance']:,}")
+            verified_facts.append(f"Account balance is £{customer_data['account_balance']:,}")
+        if customer_data.get('years_with_bank'):
+            verified_facts.append(f"{customer_data['years_with_bank']}-year customer relationship")
         if customer_data.get('digital_logins_per_month') is not None:
-            verified_facts.append(f"Digital logins: {customer_data['digital_logins_per_month']} per month")
+            verified_facts.append(f"{customer_data['digital_logins_per_month']} digital logins per month")
+        if customer_data.get('mobile_app_usage'):
+            verified_facts.append(f"{customer_data['mobile_app_usage']} mobile app usage")
+        if customer_data.get('email_opens_per_month'):
+            verified_facts.append(f"Opens {customer_data['email_opens_per_month']} emails per month")
+        if customer_data.get('branch_visits_per_month'):
+            verified_facts.append(f"Makes {customer_data['branch_visits_per_month']} branch visits monthly")
+        if customer_data.get('phone_calls_per_month'):
+            verified_facts.append(f"Makes {customer_data['phone_calls_per_month']} phone calls monthly")
+        
+        # Identify behavioral patterns
+        behavioral_patterns = []
+        if digital_logins == 0 and (customer_data.get('branch_visits_per_month', 0) > 0 or customer_data.get('phone_calls_per_month', 0) > 0):
+            behavioral_patterns.append("Highly dependent on assisted channels")
+        if customer_data.get('branch_visits_per_month', 0) > 2:
+            behavioral_patterns.append("Regular branch visitor")
+        if customer_data.get('phone_calls_per_month', 0) > 5:
+            behavioral_patterns.append("Frequent phone banking user")
+        if digital_logins == 0:
+            behavioral_patterns.append("Minimal digital engagement")
+        elif digital_logins > 20:
+            behavioral_patterns.append("Heavy digital user")
+        
+        # FIXED: Always include special_factors
+        special_factors = []
+        if customer_data.get('accessibility_needs') and customer_data['accessibility_needs'] not in ['None', 'unknown', None]:
+            special_factors.append(f"Requires additional support due to {customer_data['accessibility_needs']}")
+        if customer_data.get('recent_life_events') and customer_data['recent_life_events'] not in ['None', 'unknown', None]:
+            special_factors.append(f"Recent life event: {customer_data['recent_life_events']}")
+        if age_val > 70:
+            special_factors.append("Senior customer - may need additional support")
+        if age_val < 25:
+            special_factors.append("Young customer - digital native generation")
+        if customer_data.get('preferred_language', 'English') != 'English':
+            special_factors.append(f"Prefers communication in {customer_data.get('preferred_language')}")
         
         # Identify data gaps
         data_gaps = []
+        if not customer_data.get('income'):
+            data_gaps.append("No income information")
+        if not customer_data.get('spending_patterns'):
+            data_gaps.append("No spending patterns")
         if not customer_data.get('preferred_branch'):
-            data_gaps.append("No preferred branch information")
-        if not customer_data.get('conversation_history'):
-            data_gaps.append("No previous conversation records")
-        if not customer_data.get('product_preferences'):
-            data_gaps.append("No product preference data")
-        
-        behavioral_patterns = []
-        if digital_logins > 20:
-            behavioral_patterns.append("Frequent digital user")
-        if age_val > 65:
-            behavioral_patterns.append("Senior customer segment")
+            data_gaps.append("No preferred branch location")
+        if not customer_data.get('other_products'):
+            data_gaps.append("No information about other accounts or products")
         
         return CustomerInsights(
             segment=segment,
-            life_stage='established' if age_val > 35 else 'building',
+            life_stage='senior' if age_val > 65 else 'established' if age_val > 35 else 'building',
             digital_persona=digital_persona,
             financial_profile=financial_profile,
-            communication_style='friendly' if age_val < 50 else 'respectful',
+            communication_style='respectful' if age_val > 65 else 'friendly',
             verified_facts=verified_facts,
             behavioral_patterns=behavioral_patterns,
+            special_factors=special_factors,  # FIXED: Always included, never None
             data_gaps=data_gaps,
             confidence_score=0.7
         )
@@ -937,17 +1023,19 @@ Create the strategy now:"""
                 'formality_level': 'formal' if customer_insights.segment == 'TRADITIONAL' else 'professional',
                 'warmth_level': 'friendly'
             },
-            verified_references=customer_insights.verified_facts[:3],
+            verified_references=customer_insights.verified_facts[:5] if customer_insights.verified_facts else [],
             forbidden_specifics=[
-                "Branch names",
-                "Staff names",
-                "Specific dates not in data",
-                "Previous conversations"
+                "Specific branch locations",
+                "Staff member names", 
+                "Previous conversations",
+                "Specific meeting times",
+                "Transaction history"
             ],
             pattern_language={
                 "instead_of_branch_name": "your local branch",
-                "instead_of_staff_name": "our team",
-                "instead_of_specific_date": "recently"
+                "instead_of_staff_name": "our banking team",
+                "instead_of_specific_date": "recently",
+                "instead_of_conversation": "our records show"
             },
             channel_adaptations={
                 'email': {'hints': 'Use verified data only'},
@@ -965,16 +1053,15 @@ Create the strategy now:"""
             'customer_name': shared_context.customer_data.get('name', 'Unknown'),
             'customer_segment': shared_context.customer_insights.segment,
             'personalization_level': shared_context.personalization_strategy.level.value,
-            'enabled_channels': list(shared_context.channel_decisions['enabled_channels'].keys()),
+            'enabled_channels': [ch for ch, enabled in shared_context.channel_decisions['enabled_channels'].items() if enabled],
             'confidence_score': shared_context.analysis_confidence,
             'processing_time': f"{shared_context.processing_time:.2f}s",
             'document_type': shared_context.document_classification.get('primary_classification'),
             'verified_facts': shared_context.customer_insights.verified_facts,
+            'special_factors': shared_context.customer_insights.special_factors,  # Now always available
             'data_gaps': shared_context.customer_insights.data_gaps,
             'forbidden_specifics': shared_context.personalization_strategy.forbidden_specifics,
             'ai_model_used': shared_context.ai_model_used,
             'api_calls_saved': shared_context.api_calls_saved,
-            'voice_enabled': shared_context.channel_decisions['enabled_channels'].get('voice', False),
-            'voice_reason': shared_context.channel_decisions['reasons'].get('voice', 'N/A'),
             'hallucination_check': 'PASSED' if shared_context.hallucination_check_passed else 'FAILED'
         }

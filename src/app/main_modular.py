@@ -1,8 +1,6 @@
 """
 Lloyds AI Personalization Engine - Modular Version
-Cleaner, more maintainable architecture using display modules
-WITH all document intelligence, customer insights, and VOICE support
-FIXED: Using correct voice module import
+FIXED: Removed duplication, fixed indentation, cleaned up intelligence display
 """
 
 import streamlit as st
@@ -43,20 +41,16 @@ except Exception as e:
     st.error("Core modules not available - check installation")
     st.stop()
 
-# Try to import voice generator (use the enhanced version with audio file support)
+# Try to import voice generator - handle gracefully if not available
 try:
     from src.core.voice_note_generator_enhanced import SmartVoiceGenerator
     VOICE_AVAILABLE = True
     print("✅ Voice module loaded (enhanced version with audio support)")
-except ImportError:
-    try:
-        # Fallback to basic voice generator if enhanced not available
-        from src.core.voice_note_generator import SmartVoiceGenerator
-        VOICE_AVAILABLE = True
-        print("✅ Voice module loaded (basic version)")
-    except ImportError:
-        VOICE_AVAILABLE = False
-        print("⚠️ Voice module not available")
+except ImportError as e:
+    # Voice module not available - that's OK
+    VOICE_AVAILABLE = False
+    SmartVoiceGenerator = None
+    print(f"⚠️ Voice module not available (this is OK): {e}")
 
 # Page configuration
 st.set_page_config(
@@ -135,11 +129,16 @@ class PersonalizationApp:
             }
             
             # Add voice if available
-            if VOICE_AVAILABLE:
-                generators['voice'] = SmartVoiceGenerator()
-                print("✅ Voice generator added to generators")
+            if VOICE_AVAILABLE and SmartVoiceGenerator is not None:
+                try:
+                    generators['voice'] = SmartVoiceGenerator()
+                    print("✅ Voice generator added to generators")
+                except Exception as e:
+                    print(f"⚠️ Could not initialize voice generator: {e}")
             
             st.session_state.generators = generators
+        else:
+            st.session_state.generators = {}
     
     def display_header(self):
         """Display application header"""
@@ -151,7 +150,7 @@ class PersonalizationApp:
         <div class="shared-brain-banner">
             <h1>🧠 Lloyds AI Personalization Engine</h1>
             <h3>Modular Architecture • Powered by Shared Brain Intelligence</h3>
-            <p>{channels} • Extensible for new channels</p>
+            <p>{channels} • Anti-Hallucination Protected</p>
         </div>
         ''', unsafe_allow_html=True)
     
@@ -269,7 +268,7 @@ class PersonalizationApp:
             with st.expander("📄 Document Intelligence", expanded=True):
                 cls = st.session_state.doc_classification
                 
-                # Classification metrics - using regular text instead of metrics for better display
+                # Classification metrics
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.markdown("**Type**")
@@ -293,19 +292,6 @@ class PersonalizationApp:
                         st.markdown("**Key Evidence Found:**")
                         for i, indicator in enumerate(cls.key_indicators[:5], 1):
                             st.write(f"{i}. {indicator}")
-                    
-                    # Show AI insights if available
-                    if hasattr(cls, 'ai_insights') and cls.ai_insights:
-                        insights = cls.ai_insights
-                        st.markdown("**AI Insights:**")
-                        if 'primary_purpose' in insights:
-                            st.write(f"• **Purpose:** {insights['primary_purpose']}")
-                        if 'key_message' in insights:
-                            st.write(f"• **Key Message:** {insights['key_message']}")
-                        if 'target_audience' in insights:
-                            st.write(f"• **Target Audience:** {insights['target_audience']}")
-                        if 'emotional_impact' in insights:
-                            st.write(f"• **Emotional Impact:** {insights['emotional_impact']}")
         
         # Display Critical Information to Preserve
         if st.session_state.doc_key_points:
@@ -319,26 +305,18 @@ class PersonalizationApp:
                     st.markdown("**🔴 Critical (Must Include):**")
                     for point in critical[:5]:
                         st.write(f"• {point.content}")
-                        if point.explanation:
-                            st.caption(f"  ↳ {point.explanation}")
                 
                 if important:
                     st.markdown("**🟡 Important:**")
                     for point in important[:3]:
                         st.write(f"• {point.content}")
-                        if point.explanation:
-                            st.caption(f"  ↳ {point.explanation}")
                 
                 if contextual:
                     st.markdown("**🔵 Contextual:**")
                     for point in contextual[:2]:
                         st.write(f"• {point.content}")
-                
-                # Summary metrics
-                total_points = len(critical) + len(important) + len(contextual)
-                st.caption(f"📊 Total: {len(critical)} critical, {len(important)} important, {len(contextual)} contextual points identified")
         
-        # Letter preview with normal text size
+        # Letter preview
         if st.session_state.letter_content:
             with st.expander("📄 Letter Preview", expanded=False):
                 preview_text = st.session_state.letter_content[:500] + "..." if len(st.session_state.letter_content) > 500 else st.session_state.letter_content
@@ -393,23 +371,23 @@ class PersonalizationApp:
                 results = {}
                 
                 for channel_name, generator in st.session_state.generators.items():
-                    # Check if channel is enabled (voice might not be in decisions yet)
-                    if channel_name == 'voice':
-                        # Default voice to enabled for testing
-                        enabled = shared_context.channel_decisions['enabled_channels'].get('voice', True)
-                    else:
-                        enabled = shared_context.channel_decisions['enabled_channels'].get(channel_name, False)
+                    # Check if channel is enabled
+                    enabled = shared_context.channel_decisions['enabled_channels'].get(channel_name, False)
                     
                     if enabled:
                         with st.spinner(f"Generating {channel_name}..."):
-                            if channel_name == 'email':
-                                results['email'] = generator.generate_email(shared_context)
-                            elif channel_name == 'sms':
-                                results['sms'] = generator.generate_sms(shared_context)
-                            elif channel_name == 'letter':
-                                results['letter'] = generator.generate_letter(shared_context)
-                            elif channel_name == 'voice' and VOICE_AVAILABLE:
-                                results['voice'] = generator.generate_voice_note(shared_context)
+                            try:
+                                if channel_name == 'email':
+                                    results['email'] = generator.generate_email(shared_context)
+                                elif channel_name == 'sms':
+                                    results['sms'] = generator.generate_sms(shared_context)
+                                elif channel_name == 'letter':
+                                    results['letter'] = generator.generate_letter(shared_context)
+                                elif channel_name == 'voice' and VOICE_AVAILABLE:
+                                    results['voice'] = generator.generate_voice_note(shared_context)
+                            except Exception as e:
+                                print(f"Error generating {channel_name}: {e}")
+                                st.error(f"Failed to generate {channel_name}: {str(e)}")
                 
                 # Store results
                 for channel, result in results.items():
@@ -427,6 +405,116 @@ class PersonalizationApp:
         except Exception as e:
             st.error(f"Processing error: {e}")
             traceback.print_exc()
+    
+    def display_intelligence(self):
+        """Display CLEANED SharedBrain intelligence - NO DUPLICATION"""
+        if not st.session_state.shared_context:
+            return
+        
+        ctx = st.session_state.shared_context
+        insights = ctx.customer_insights
+        strategy = ctx.personalization_strategy
+        
+        st.markdown('<div class="intelligence-card">', unsafe_allow_html=True)
+        st.markdown("### 🧠 Shared Brain Intelligence")
+        
+        # Core metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Customer Segment", safe_get_attribute(insights, 'segment', 'Unknown'))
+            st.metric("Confidence", f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
+        
+        with col2:
+            life_stage = safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()
+            st.metric("Life Stage", life_stage)
+            digital_persona = safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()
+            st.metric("Digital Persona", digital_persona)
+        
+        with col3:
+            financial_profile = safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()
+            st.metric("Financial Profile", financial_profile)
+            communication_style = safe_get_attribute(insights, 'communication_style', 'unknown').title()
+            st.metric("Communication Style", communication_style)
+        
+        with col4:
+            level = safe_get_attribute(strategy, 'level.value', 'basic').upper()
+            st.metric("Personalization Level", level)
+            processing_time = ctx.processing_time
+            st.metric("Processing Time", f"{processing_time:.1f}s")
+        
+        # MAIN CONTENT SECTIONS - CLEANED UP, NO DUPLICATION
+        
+        # 1. Verified Customer Facts (Primary source of truth)
+        verified_facts = safe_get_attribute(insights, 'verified_facts', [])
+        if verified_facts:
+            with st.expander("✅ Verified Customer Facts", expanded=True):
+                for i, fact in enumerate(verified_facts[:10], 1):
+                    st.write(f"{i}. {fact}")
+        
+        # 2. Behavioral Patterns (Inferred from data)
+        behavioral_patterns = safe_get_attribute(insights, 'behavioral_patterns', [])
+        if behavioral_patterns:
+            with st.expander("📊 Behavioral Patterns", expanded=False):
+                for pattern in behavioral_patterns:
+                    st.write(f"• {pattern}")
+        
+        # 3. Special Factors (Important circumstances)
+        special_factors = safe_get_attribute(insights, 'special_factors', [])
+        if special_factors:
+            with st.expander("🌟 Special Factors", expanded=False):
+                for factor in special_factors:
+                    st.write(f"• {factor}")
+        
+        # 4. Data Gaps (What we're avoiding)
+        data_gaps = safe_get_attribute(insights, 'data_gaps', [])
+        if data_gaps:
+            with st.expander("⚠️ Data Not Available (Avoided in Personalization)", expanded=False):
+                for gap in data_gaps[:5]:
+                    st.write(f"• {gap}")
+        
+        # 5. Safe References and Forbidden Items
+        col_safe, col_forbidden = st.columns(2)
+        
+        with col_safe:
+            verified_refs = safe_get_attribute(strategy, 'verified_references', [])
+            if verified_refs:
+                with st.expander("✅ Safe to Reference", expanded=False):
+                    for ref in verified_refs[:5]:
+                        st.write(f"• {ref}")
+        
+        with col_forbidden:
+            forbidden = safe_get_attribute(strategy, 'forbidden_specifics', [])
+            if forbidden:
+                with st.expander("🚫 Forbidden (Not to Invent)", expanded=False):
+                    for item in forbidden[:5]:
+                        st.write(f"• {item}")
+        
+        # 6. Pattern Language (How we handle missing data)
+        pattern_language = safe_get_attribute(strategy, 'pattern_language', {})
+        if pattern_language:
+            with st.expander("🔄 Safe Language Patterns", expanded=False):
+                for original, replacement in pattern_language.items():
+                    st.write(f"• Instead of {original}: **{replacement}**")
+        
+        # 7. Channel Decisions
+        with st.expander("📺 Channel Decisions", expanded=False):
+            enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
+            channel_reasons = safe_get_attribute(ctx, 'channel_decisions.reasons', {})
+            
+            for channel, enabled in enabled_channels.items():
+                status = "✅ Enabled" if enabled else "❌ Disabled"
+                reason = channel_reasons.get(channel, "No reason provided")
+                st.write(f"**{channel.upper()}:** {status} - {reason}")
+        
+        # 8. Hallucination Check Status
+        hallucination_passed = safe_get_attribute(ctx, 'hallucination_check_passed', True)
+        if hallucination_passed:
+            st.success("🛡️ Anti-Hallucination Check: PASSED")
+        else:
+            st.warning("🛡️ Anti-Hallucination Check: WARNINGS DETECTED")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
     def display_results(self):
         """Display all results using modular displays"""
@@ -478,82 +566,6 @@ class PersonalizationApp:
         with tabs[-1]:
             self.display_analysis()
     
-    def display_intelligence(self):
-        """Display complete SharedBrain intelligence with all insights"""
-        if not st.session_state.shared_context:
-            return
-        
-        ctx = st.session_state.shared_context
-        insights = ctx.customer_insights
-        strategy = ctx.personalization_strategy
-        
-        st.markdown('<div class="intelligence-card">', unsafe_allow_html=True)
-        st.markdown("### 🧠 Shared Brain Intelligence")
-        
-        # Core metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Customer Segment", safe_get_attribute(insights, 'segment', 'Unknown'))
-            st.metric("Confidence", f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
-        
-        with col2:
-            life_stage = safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()
-            st.metric("Life Stage", life_stage)
-            digital_persona = safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()
-            st.metric("Digital Persona", digital_persona)
-        
-        with col3:
-            financial_profile = safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()
-            st.metric("Financial Profile", financial_profile)
-            communication_style = safe_get_attribute(insights, 'communication_style', 'unknown').title()
-            st.metric("Communication Style", communication_style)
-        
-        with col4:
-            level = safe_get_attribute(strategy, 'level.value', 'basic').upper()
-            st.metric("Personalization Level", level)
-            processing_time = ctx.processing_time
-            st.metric("Processing Time", f"{processing_time:.1f}s")
-        
-        # Customer story
-        customer_story = safe_get_attribute(strategy, 'customer_story', '')
-        if customer_story:
-            st.markdown("**🎯 AI Customer Story:**")
-            st.info(customer_story)
-        
-        # Personalization hooks
-        personalization_hooks = safe_get_attribute(insights, 'personalization_hooks', [])
-        if personalization_hooks:
-            with st.expander("🎣 AI Personalization Hooks", expanded=False):
-                for i, hook in enumerate(personalization_hooks[:5], 1):
-                    st.write(f"{i}. {hook}")
-        
-        # Special factors
-        special_factors = safe_get_attribute(insights, 'special_factors', [])
-        if special_factors:
-            with st.expander("🌟 Special Factors", expanded=False):
-                for factor in special_factors:
-                    st.write(f"• {factor}")
-        
-        # Must mention items
-        must_mention = safe_get_attribute(strategy, 'must_mention', [])
-        if must_mention:
-            with st.expander("✅ Must Mention Items", expanded=False):
-                for item in must_mention[:3]:
-                    st.write(f"• {item}")
-        
-        # Channel decisions
-        with st.expander("📺 Channel Decisions", expanded=False):
-            enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
-            channel_reasons = safe_get_attribute(ctx, 'channel_decisions.reasons', {})
-            
-            for channel, enabled in enabled_channels.items():
-                status = "✅ Enabled" if enabled else "❌ Disabled"
-                reason = channel_reasons.get(channel, "No reason provided")
-                st.write(f"**{channel.upper()}:** {status} - {reason}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
     def display_analysis(self):
         """Display deep personalization analysis"""
         if not st.session_state.shared_context:
@@ -567,40 +579,49 @@ class PersonalizationApp:
         st.markdown('<div class="personalization-insights">', unsafe_allow_html=True)
         st.markdown("### 🎯 Deep Personalization Analysis")
         
-        # Brain insights
-        st.markdown("**🧠 Brain Insights:**")
+        # Summary metrics
+        col1, col2, col3 = st.columns(3)
         
-        col1, col2 = st.columns(2)
         with col1:
-            st.write(f"• **Segment:** {safe_get_attribute(insights, 'segment', 'UNKNOWN')}")
-            st.write(f"• **Life Stage:** {safe_get_attribute(insights, 'life_stage', 'unknown')}")
-            st.write(f"• **Digital Persona:** {safe_get_attribute(insights, 'digital_persona', 'unknown')}")
+            st.metric("Total Verified Facts", len(insights.verified_facts))
+            st.metric("Behavioral Patterns", len(insights.behavioral_patterns))
         
         with col2:
-            st.write(f"• **Financial Profile:** {safe_get_attribute(insights, 'financial_profile', 'unknown')}")
-            st.write(f"• **Communication Style:** {safe_get_attribute(insights, 'communication_style', 'unknown')}")
-            st.write(f"• **Confidence:** {safe_get_attribute(insights, 'confidence_score', 0):.1%}")
+            st.metric("Special Factors", len(insights.special_factors))
+            st.metric("Data Gaps Identified", len(insights.data_gaps))
         
-        # Special factors
-        special_factors = safe_get_attribute(insights, 'special_factors', [])
-        if special_factors:
-            st.markdown("**🎯 Special Factors:**")
-            for factor in special_factors:
-                st.write(f"• {factor}")
+        with col3:
+            st.metric("Safe References", len(strategy.verified_references))
+            st.metric("Forbidden Items", len(strategy.forbidden_specifics))
         
-        # Personalization hooks
-        hooks = safe_get_attribute(insights, 'personalization_hooks', [])
-        if hooks:
-            st.markdown("**🎣 AI Personalization Hooks:**")
-            for i, hook in enumerate(hooks[:5], 1):
-                st.write(f"{i}. {hook}")
+        # Customer Profile Summary
+        customer_data_profile = safe_get_attribute(strategy, 'customer_data_profile', {})
+        if customer_data_profile:
+            st.markdown("**📋 Customer Data Profile:**")
+            
+            known_attrs = customer_data_profile.get('known_attributes', [])
+            if known_attrs:
+                st.markdown("**Known Attributes:**")
+                for attr in known_attrs[:5]:
+                    st.write(f"• {attr}")
+            
+            segment_chars = customer_data_profile.get('segment_characteristics', [])
+            if segment_chars:
+                st.markdown("**Segment Characteristics:**")
+                for char in segment_chars:
+                    st.write(f"• {char}")
         
-        # Connection points
-        connection_points = safe_get_attribute(strategy, 'connection_points', {})
-        if connection_points:
-            st.markdown("**🔗 Connection Points:**")
-            for key, value in connection_points.items():
-                st.write(f"• **{key}:** {value}")
+        # Tone Guidelines
+        tone_guidelines = safe_get_attribute(strategy, 'tone_guidelines', {})
+        if tone_guidelines:
+            st.markdown("**🎨 Tone Guidelines:**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"• Overall: {tone_guidelines.get('overall_tone', 'N/A')}")
+                st.write(f"• Formality: {tone_guidelines.get('formality_level', 'N/A')}")
+            with col2:
+                st.write(f"• Warmth: {tone_guidelines.get('warmth_level', 'N/A')}")
+                st.write(f"• Energy: {tone_guidelines.get('energy_level', 'N/A')}")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
