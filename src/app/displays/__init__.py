@@ -1,4 +1,4 @@
-"""Display Module - Updated with Voice Display"""
+"""Display Module - Updated with Voice Display and Hallucination Display"""
 
 # Import type hints
 from typing import Any
@@ -9,6 +9,9 @@ from .sms_display import SMSDisplay
 from .letter_display import LetterDisplay
 from .voice_display import VoiceDisplay, display_voice_note
 from .base_display import BaseChannelDisplay
+
+# Import hallucination display
+from .hallucination_display import HallucinationDisplay, display_hallucination_report
 
 # Import orchestrator display if available
 try:
@@ -21,7 +24,8 @@ CHANNEL_DISPLAYS = {
     'email': EmailDisplay(),
     'sms': SMSDisplay(),
     'letter': LetterDisplay(),
-    'voice': VoiceDisplay()
+    'voice': VoiceDisplay(),
+    'hallucination': HallucinationDisplay()
 }
 
 # Add orchestrator if available
@@ -33,7 +37,7 @@ def get_display_for_channel(channel_name: str):
     """Get display instance for a specific channel
     
     Args:
-        channel_name: Name of the channel (email, sms, letter, voice, etc.)
+        channel_name: Name of the channel (email, sms, letter, voice, hallucination, etc.)
         
     Returns:
         Display instance or None if not found
@@ -67,6 +71,8 @@ __all__ = [
     'LetterDisplay',
     'VoiceDisplay',
     'display_voice_note',
+    'HallucinationDisplay',
+    'display_hallucination_report',
     'BaseChannelDisplay',
     'OrchestratorDisplay',
     'get_all_displays',
