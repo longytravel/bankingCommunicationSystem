@@ -1,6 +1,6 @@
 """
 Hallucination Display Module - Visualizes hallucination detection results
-Shows findings, risk scores, and recommendations in the Streamlit UI
+UPDATED: Includes refinement action buttons for fixing detected issues
 """
 
 import streamlit as st
@@ -33,7 +33,7 @@ except ImportError:
     print("⚠️ Hallucination types not available")
 
 class HallucinationDisplay(BaseChannelDisplay):
-    """Display handler for hallucination detection results"""
+    """Display handler for hallucination detection results with refinement actions"""
     
     def __init__(self):
         super().__init__("Hallucination Check", "🚨")
@@ -143,30 +143,11 @@ class HallucinationDisplay(BaseChannelDisplay):
             margin: 1rem 0;
         }
         
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .stat-number {
-            font-size: 2em;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            color: #666;
-            font-size: 0.9em;
+        .refinement-actions {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
         }
         </style>
         """
@@ -200,6 +181,9 @@ class HallucinationDisplay(BaseChannelDisplay):
             # Recommendations
             self._display_recommendations(report)
             
+            # REFINEMENT ACTIONS - NEW!
+            self.display_refinement_actions(report, shared_context)
+            
             # Technical details
             self._display_technical_details(report)
             
@@ -207,6 +191,72 @@ class HallucinationDisplay(BaseChannelDisplay):
             st.error(f"Error displaying hallucination report: {e}")
             import traceback
             st.error(traceback.format_exc())
+    
+    def display_refinement_actions(self, report: Any, shared_context: Any = None) -> None:
+        """Display refinement action buttons for channels with hallucinations"""
+        
+        if not hasattr(report, 'channels_analyzed') or not report.channels_analyzed:
+            return
+        
+        # Check which channels have hallucinations
+        channels_with_issues = {}
+        for channel in report.channels_analyzed:
+            findings = self._get_findings_for_channel(report, channel)
+            if findings and len(findings) > 0:
+                channels_with_issues[channel] = len(findings)
+        
+        if channels_with_issues:
+            st.markdown("---")
+            st.markdown('<div class="refinement-actions">', unsafe_allow_html=True)
+            st.markdown("### 🔧 Refinement Actions")
+            st.markdown("Remove hallucinations and enhance personalization:")
+            
+            # Create columns for buttons
+            cols = st.columns(min(len(channels_with_issues), 4))
+            
+            for idx, (channel, count) in enumerate(channels_with_issues.items()):
+                with cols[idx % len(cols)]:
+                    if channel == 'email':
+                        button_label = f"✨ Refine Email ({count} issues)"
+                        button_key = f"refine_email_btn_{id(report)}"  # Unique key
+                        
+                        if st.button(button_label, key=button_key, type="primary", use_container_width=True):
+                            # Trigger email refinement
+                            st.session_state.refine_email_triggered = True
+                            st.session_state.refinement_in_progress = True
+                            st.rerun()
+                    
+                    elif channel == 'letter':
+                        button_label = f"✨ Refine Letter ({count} issues)"
+                        st.button(button_label, disabled=True, use_container_width=True, 
+                                help="Letter refinement coming soon")
+                    
+                    elif channel == 'sms':
+                        button_label = f"✨ Refine SMS ({count} issues)"
+                        st.button(button_label, disabled=True, use_container_width=True,
+                                help="SMS refinement coming soon")
+                    
+                    elif channel == 'voice':
+                        button_label = f"✨ Refine Voice ({count} issues)"
+                        st.button(button_label, disabled=True, use_container_width=True,
+                                help="Voice refinement coming soon")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Show refinement status if in progress
+            if st.session_state.get('refinement_in_progress', False):
+                with st.spinner("🔄 Refining email... Removing hallucinations and enhancing personalization..."):
+                    # The actual refinement will be handled in main_modular.py
+                    pass
+        else:
+            st.success("✅ No hallucinations detected - content is clean!")
+    
+    def _get_findings_for_channel(self, report: Any, channel: str) -> list:
+        """Get findings for a specific channel"""
+        if not hasattr(report, 'findings'):
+            return []
+        
+        return [f for f in report.findings if hasattr(f, 'channel') and f.channel == channel]
     
     def _display_header(self, report: Any) -> None:
         """Display the header section"""
@@ -259,12 +309,6 @@ class HallucinationDisplay(BaseChannelDisplay):
         medium_count = len([f for f in findings if f.severity == SeverityLevel.MEDIUM])
         low_count = len([f for f in findings if f.severity == SeverityLevel.LOW])
         
-        # Count by category
-        categories = {}
-        for finding in findings:
-            cat = finding.category.value if hasattr(finding.category, 'value') else str(finding.category)
-            categories[cat] = categories.get(cat, 0) + 1
-        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -275,14 +319,6 @@ class HallucinationDisplay(BaseChannelDisplay):
             st.metric("Medium Severity", medium_count, delta_color="inverse")
         with col4:
             st.metric("Low Severity", low_count, delta_color="normal")
-        
-        # Category breakdown
-        if categories:
-            st.markdown("### 📊 Findings by Category")
-            cat_cols = st.columns(min(len(categories), 4))
-            for i, (cat, count) in enumerate(categories.items()):
-                with cat_cols[i % len(cat_cols)]:
-                    st.metric(cat.replace('_', ' ').title(), count)
     
     def _display_summary(self, report: Any) -> None:
         """Display executive summary"""

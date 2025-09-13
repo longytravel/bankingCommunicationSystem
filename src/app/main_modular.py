@@ -2,6 +2,7 @@
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
 WITH all document intelligence, customer insights, VOICE support, and HALLUCINATION DETECTION
+UPDATED: Now includes EMAIL REFINEMENT functionality
 """
 
 import streamlit as st
@@ -25,6 +26,16 @@ sys.path.insert(0, str(project_root))
 # Import the modular display system
 from src.app.displays import CHANNEL_DISPLAYS, get_display_for_channel
 from src.app.utils.safe_access import safe_get_attribute
+
+# Import refinement modules
+try:
+    from src.core.email_refiner import EmailRefiner, refine_email
+    from src.app.displays.refinement_display import RefinementDisplay
+    REFINEMENT_AVAILABLE = True
+    print("✅ Email refinement module loaded")
+except ImportError as e:
+    REFINEMENT_AVAILABLE = False
+    print(f"⚠️ Email refinement not available: {e}")
 
 # Import core modules
 try:
@@ -130,9 +141,18 @@ class PersonalizationApp:
             'doc_classification', 'doc_key_points'
         ]
         
-        for var in state_vars:
+        # Add refinement state variables
+        refinement_vars = [
+            'refined_email_result',
+            'refine_email_triggered', 
+            'refinement_in_progress',
+            'refinement_accepted',
+            'refinement_rejected'
+        ]
+        
+        for var in state_vars + refinement_vars:
             if var not in st.session_state:
-                st.session_state[var] = None if var != 'doc_analyzed' else False
+                st.session_state[var] = None if 'result' in var or 'content' in var else False
     
     def setup_generators(self):
         """Setup all channel generators"""
@@ -157,6 +177,8 @@ class PersonalizationApp:
             channels += " • Voice"
         if HALLUCINATION_AVAILABLE:
             channels += " • Hallucination Detection"
+        if REFINEMENT_AVAILABLE:
+            channels += " • Email Refinement"
         
         st.markdown(f'''
         <div class="shared-brain-banner">
@@ -186,6 +208,10 @@ class PersonalizationApp:
             # Add hallucination detector status
             if HALLUCINATION_AVAILABLE:
                 modules_status['Hallucination Detector'] = True
+            
+            # Add refinement status
+            if REFINEMENT_AVAILABLE:
+                modules_status['Email Refiner'] = True
             
             for module, status in modules_status.items():
                 icon = "✅" if status else "❌"
@@ -246,6 +272,10 @@ class PersonalizationApp:
                     )
                     st.write(f"**🚨 Hallucinations:** {total_findings}")
                     st.write(f"**Risk Score:** {risk_score:.0%}")
+                
+                # Show refinement status if available
+                if st.session_state.refined_email_result:
+                    st.write(f"**✨ Email Refined:** Yes")
     
     def handle_letter_upload(self) -> Optional[str]:
         """Handle letter file upload"""
@@ -544,6 +574,49 @@ class PersonalizationApp:
                                 st.session_state.hallucination_result, 
                                 customer_name
                             )
+                            
+                            # HANDLE EMAIL REFINEMENT TRIGGER
+                            if st.session_state.get('refine_email_triggered', False) and REFINEMENT_AVAILABLE:
+                                # Clear the trigger
+                                st.session_state.refine_email_triggered = False
+                                
+                                # Check if we have what we need
+                                if (st.session_state.get('email_result') and 
+                                    st.session_state.get('hallucination_result') and
+                                    st.session_state.get('shared_context')):
+                                    
+                                    with st.spinner("🔧 Refining email... Removing hallucinations and enhancing personalization..."):
+                                        # Perform refinement
+                                        refined_result = refine_email(
+                                            st.session_state.email_result,
+                                            st.session_state.hallucination_result,
+                                            st.session_state.shared_context
+                                        )
+                                        
+                                        # Store refined result
+                                        st.session_state.refined_email_result = refined_result
+                                        st.session_state.refinement_in_progress = False
+                                    
+                                    # Display refinement results
+                                    st.markdown("---")
+                                    refinement_display = RefinementDisplay()
+                                    refinement_display.display_refinement_in_hallucination_tab(
+                                        refined_result,
+                                        st.session_state.shared_context
+                                    )
+                                else:
+                                    st.error("Missing required data for refinement")
+                                    st.session_state.refinement_in_progress = False
+                            
+                            # Display previous refinement if exists
+                            elif st.session_state.get('refined_email_result') and REFINEMENT_AVAILABLE:
+                                st.markdown("---")
+                                st.markdown("### 📝 Previous Refinement")
+                                refinement_display = RefinementDisplay()
+                                refinement_display.display_refinement_in_hallucination_tab(
+                                    st.session_state.refined_email_result,
+                                    st.session_state.shared_context
+                                )
                     else:
                         st.info("🚨 No hallucination analysis available yet. Generate content first.")
                 else:
@@ -588,30 +661,38 @@ class PersonalizationApp:
         st.markdown('<div class="intelligence-card">', unsafe_allow_html=True)
         st.markdown("### 🧠 Shared Brain Intelligence")
         
-        # Core metrics
+        # Core metrics - using columns with regular text instead of st.metric for better control
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Customer Segment", safe_get_attribute(insights, 'segment', 'Unknown'))
-            st.metric("Confidence", f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
+            st.markdown("**Customer Segment**")
+            st.write(safe_get_attribute(insights, 'segment', 'Unknown'))
+            st.markdown("**Confidence**")
+            st.write(f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
         
         with col2:
+            st.markdown("**Life Stage**")
             life_stage = safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()
-            st.metric("Life Stage", life_stage)
+            st.write(life_stage)
+            st.markdown("**Digital Persona**")
             digital_persona = safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()
-            st.metric("Digital Persona", digital_persona)
+            st.write(digital_persona)
         
         with col3:
+            st.markdown("**Financial Profile**")
             financial_profile = safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()
-            st.metric("Financial Profile", financial_profile)
+            st.write(financial_profile)
+            st.markdown("**Communication Style**")
             communication_style = safe_get_attribute(insights, 'communication_style', 'unknown').title()
-            st.metric("Communication Style", communication_style)
+            st.write(communication_style)
         
         with col4:
+            st.markdown("**Personalization Level**")
             level = safe_get_attribute(strategy, 'level.value', 'basic').upper()
-            st.metric("Personalization Level", level)
+            st.write(level)
+            st.markdown("**Processing Time**")
             processing_time = ctx.processing_time
-            st.metric("Processing Time", f"{processing_time:.1f}s")
+            st.write(f"{processing_time:.1f}s")
         
         # Customer story
         customer_story = safe_get_attribute(strategy, 'customer_story', '')
@@ -722,6 +803,24 @@ class PersonalizationApp:
                 for rec in report.recommendations[:3]:
                     st.write(f"• {rec}")
         
+        # Refinement Summary
+        if st.session_state.refined_email_result and REFINEMENT_AVAILABLE:
+            st.markdown("---")
+            st.markdown("**✨ Email Refinement Summary:**")
+            refined = st.session_state.refined_email_result
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Hallucinations Removed", refined.metrics.hallucinations_removed)
+            with col2:
+                st.metric("Inferences Added", refined.metrics.inferences_added)
+            with col3:
+                quality_delta = (refined.metrics.quality_score_after - refined.metrics.quality_score_before) * 100
+                st.metric("Quality Improvement", f"+{quality_delta:.0f}%")
+            with col4:
+                personal_delta = (refined.metrics.personalization_score_after - refined.metrics.personalization_score_before) * 100
+                st.metric("Personalization Boost", f"+{personal_delta:.0f}%")
+        
         st.markdown('</div>', unsafe_allow_html=True)
     
     def run(self):
@@ -773,3 +872,4 @@ class PersonalizationApp:
 if __name__ == "__main__":
     app = PersonalizationApp()
     app.run()
+    
