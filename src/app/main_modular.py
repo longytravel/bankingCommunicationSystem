@@ -2,7 +2,7 @@
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
 WITH all document intelligence, customer insights, VOICE support, and HALLUCINATION DETECTION
-UPDATED: Now includes EMAIL REFINEMENT functionality and SENTIMENT ANALYSIS
+UPDATED: Now includes EMAIL REFINEMENT functionality and SIMPLE SENTIMENT ANALYSIS
 """
 
 import streamlit as st
@@ -37,15 +37,15 @@ except ImportError as e:
     REFINEMENT_AVAILABLE = False
     print(f"⚠️ Email refinement not available: {e}")
 
-# Import sentiment analysis modules
+# Import the NEW SIMPLE sentiment analysis modules
 try:
-    from src.core.sentiment_analyzer import SentimentAnalyzer, analyze_email_sentiment
-    from src.app.displays.sentiment_display import SentimentDisplay
-    SENTIMENT_AVAILABLE = True
-    print("✅ Sentiment analysis module loaded")
+    from src.core.sentiment_analyzer_simple import analyze_sentiment_simple
+    from src.app.displays.sentiment_display_simple import display_simple_sentiment
+    SIMPLE_SENTIMENT_AVAILABLE = True
+    print("✅ Simple sentiment analysis loaded")
 except ImportError as e:
-    SENTIMENT_AVAILABLE = False
-    print(f"⚠️ Sentiment analysis not available: {e}")
+    SIMPLE_SENTIMENT_AVAILABLE = False
+    print(f"⚠️ Simple sentiment not available: {e}")
 
 # Import core modules
 try:
@@ -160,9 +160,10 @@ class PersonalizationApp:
             'refinement_rejected'
         ]
         
-        # Add sentiment state variables
+        # Add sentiment state variables (including the new simple one)
         sentiment_vars = [
-            'sentiment_analysis_result',
+            'sentiment_result_simple',  # NEW simple sentiment result
+            'sentiment_analysis_result',  # Keep old one for compatibility
             'analyze_sentiment_triggered',
             'sentiment_analysis_in_progress',
             'improve_sentiment_triggered'
@@ -197,7 +198,7 @@ class PersonalizationApp:
             channels += " • Hallucination Detection"
         if REFINEMENT_AVAILABLE:
             channels += " • Email Refinement"
-        if SENTIMENT_AVAILABLE:
+        if SIMPLE_SENTIMENT_AVAILABLE:
             channels += " • Sentiment Analysis"
         
         st.markdown(f'''
@@ -234,7 +235,7 @@ class PersonalizationApp:
                 modules_status['Email Refiner'] = True
             
             # Add sentiment analysis status
-            if SENTIMENT_AVAILABLE:
+            if SIMPLE_SENTIMENT_AVAILABLE:
                 modules_status['Sentiment Analyzer'] = True
             
             for module, status in modules_status.items():
@@ -301,19 +302,12 @@ class PersonalizationApp:
                 if st.session_state.refined_email_result:
                     st.write(f"**✨ Email Refined:** Yes")
                 
-                # Show sentiment status if available
-                if st.session_state.sentiment_analysis_result:
-                    sentiment = safe_get_attribute(
-                        st.session_state.sentiment_analysis_result,
-                        'overall_sentiment',
-                        0
-                    )
-                    zone = safe_get_attribute(
-                        st.session_state.sentiment_analysis_result,
-                        'sentiment_zone.value',
-                        'unknown'
-                    )
-                    st.write(f"**🎭 Sentiment:** {sentiment:.2f} ({zone})")
+                # Show sentiment status if available (NEW SIMPLE VERSION)
+                if st.session_state.sentiment_result_simple:
+                    sentiment = st.session_state.sentiment_result_simple.get('overall_score', 0)
+                    ready = st.session_state.sentiment_result_simple.get('ready_to_send', False)
+                    st.write(f"**🎭 Sentiment:** {sentiment}/100")
+                    st.write(f"**Ready:** {'✅' if ready else '❌'}")
     
     def handle_letter_upload(self) -> Optional[str]:
         """Handle letter file upload"""
@@ -643,55 +637,43 @@ class PersonalizationApp:
                                         st.session_state.shared_context
                                     )
                                     
-                                    # SENTIMENT ANALYSIS SECTION - Now with manual trigger button
-                                    if SENTIMENT_AVAILABLE:
+                                    # SIMPLE SENTIMENT ANALYSIS SECTION
+                                    if SIMPLE_SENTIMENT_AVAILABLE:
                                         st.markdown("---")
                                         st.markdown("### 🎭 Sentiment Analysis")
                                         
-                                        # Check if we already have sentiment analysis results
-                                        if st.session_state.get('sentiment_analysis_result'):
-                                            # Display existing sentiment analysis
-                                            sentiment_display = SentimentDisplay()
-                                            sentiment_display.display_sentiment_analysis(
-                                                st.session_state.sentiment_analysis_result,
-                                                refined_result,
-                                                st.session_state.shared_context
-                                            )
+                                        # Check if we already have results
+                                        if st.session_state.get('sentiment_result_simple'):
+                                            # Display existing results
+                                            display_simple_sentiment(st.session_state.sentiment_result_simple)
                                             
                                             # Option to re-analyze
-                                            if st.button("🔄 Re-analyze Sentiment", key=f"reanalyze_sentiment_{id(refined_result)}"):
-                                                st.session_state.sentiment_analysis_result = None
+                                            if st.button("🔄 Re-analyze Sentiment", key="reanalyze_sentiment_simple"):
+                                                st.session_state.sentiment_result_simple = None
                                                 st.rerun()
                                         else:
-                                            # No sentiment analysis yet - show button to trigger it
-                                            st.info("📊 Sentiment analysis will evaluate the emotional tone, compliance, and predicted customer impact of your refined email.")
+                                            # No analysis yet - show button to trigger
+                                            st.info("📊 Analyze the emotional tone, compliance, and predicted customer impact.")
                                             
-                                            if st.button("🎭 Analyze Sentiment", type="primary", use_container_width=True, key=f"analyze_sentiment_{id(refined_result)}"):
-                                                with st.spinner("🎭 Performing comprehensive sentiment analysis..."):
+                                            if st.button("🎭 Analyze Sentiment", type="primary", use_container_width=True, key="analyze_sentiment_button"):
+                                                with st.spinner("🎭 Analyzing sentiment..."):
                                                     try:
-                                                        print(f"DEBUG: Manual sentiment analysis triggered")
-                                                        print(f"  refined_result type: {type(refined_result)}")
+                                                        # Get what we need
+                                                        email_content = refined_result.refined_content
+                                                        customer_name = st.session_state.shared_context.customer_data.get('name', 'Customer')
                                                         
-                                                        sentiment_result = analyze_email_sentiment(
-                                                            refined_result,
-                                                            st.session_state.shared_context
-                                                        )
+                                                        # Run simple analyzer (returns a plain dict!)
+                                                        result = analyze_sentiment_simple(email_content, customer_name)
                                                         
-                                                        print(f"DEBUG: Sentiment analysis complete")
-                                                        print(f"  sentiment_result type: {type(sentiment_result)}")
-                                                        if sentiment_result:
-                                                            print(f"  overall_score: {getattr(sentiment_result, 'overall_score', 'MISSING')}")
+                                                        # Store in session state
+                                                        st.session_state.sentiment_result_simple = result
                                                         
-                                                        st.session_state.sentiment_analysis_result = sentiment_result
-                                                        st.success("✅ Sentiment analysis complete!")
+                                                        st.success("✅ Analysis complete!")
                                                         st.rerun()
                                                         
                                                     except Exception as e:
-                                                        print(f"ERROR in sentiment analysis: {e}")
-                                                        import traceback
-                                                        traceback.print_exc()
-                                                        st.error(f"❌ Sentiment analysis failed: {str(e)}")
-                                                        st.error("Please try again or check the logs for details.")
+                                                        st.error(f"❌ Analysis failed: {str(e)}")
+                                                        st.info("Check your Claude API key in .env file")
                                 else:
                                     st.error("Missing required data for refinement")
                                     st.session_state.refinement_in_progress = False
@@ -706,36 +688,31 @@ class PersonalizationApp:
                                     st.session_state.shared_context
                                 )
                                 
-                                # SENTIMENT ANALYSIS SECTION
-                                if SENTIMENT_AVAILABLE:
+                                # SIMPLE SENTIMENT ANALYSIS SECTION (for existing refinement)
+                                if SIMPLE_SENTIMENT_AVAILABLE:
                                     st.markdown("---")
                                     st.markdown("### 🎭 Sentiment Analysis")
                                     
-                                    if st.session_state.get('sentiment_analysis_result'):
+                                    if st.session_state.get('sentiment_result_simple'):
                                         # Display existing sentiment analysis
-                                        sentiment_display = SentimentDisplay()
-                                        sentiment_display.display_sentiment_analysis(
-                                            st.session_state.sentiment_analysis_result,
-                                            st.session_state.refined_email_result,
-                                            st.session_state.shared_context
-                                        )
+                                        display_simple_sentiment(st.session_state.sentiment_result_simple)
                                         
                                         # Option to re-analyze
                                         if st.button("🔄 Re-analyze Sentiment", key="reanalyze_existing_sentiment"):
-                                            st.session_state.sentiment_analysis_result = None
+                                            st.session_state.sentiment_result_simple = None
                                             st.rerun()
                                     else:
                                         # Show button to trigger sentiment analysis
                                         st.info("📊 Analyze the emotional tone and compliance of your refined email.")
                                         
                                         if st.button("🎭 Analyze Sentiment", type="primary", use_container_width=True, key="analyze_existing_sentiment"):
-                                            with st.spinner("🎭 Performing comprehensive sentiment analysis..."):
+                                            with st.spinner("🎭 Analyzing sentiment..."):
                                                 try:
-                                                    sentiment_result = analyze_email_sentiment(
-                                                        st.session_state.refined_email_result,
-                                                        st.session_state.shared_context
-                                                    )
-                                                    st.session_state.sentiment_analysis_result = sentiment_result
+                                                    email_content = st.session_state.refined_email_result.refined_content
+                                                    customer_name = st.session_state.shared_context.customer_data.get('name', 'Customer')
+                                                    
+                                                    result = analyze_sentiment_simple(email_content, customer_name)
+                                                    st.session_state.sentiment_result_simple = result
                                                     st.success("✅ Sentiment analysis complete!")
                                                     st.rerun()
                                                 except Exception as e:
@@ -944,34 +921,26 @@ class PersonalizationApp:
                 personal_delta = (refined.metrics.personalization_score_after - refined.metrics.personalization_score_before) * 100
                 st.metric("Personalization Boost", f"+{personal_delta:.0f}%")
         
-        # Sentiment Analysis Summary
-        if st.session_state.sentiment_analysis_result and SENTIMENT_AVAILABLE:
+        # Simple Sentiment Analysis Summary
+        if st.session_state.sentiment_result_simple and SIMPLE_SENTIMENT_AVAILABLE:
             st.markdown("---")
             st.markdown("**🎭 Sentiment Analysis Summary:**")
-            sentiment = st.session_state.sentiment_analysis_result
+            sentiment = st.session_state.sentiment_result_simple
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Overall Sentiment", f"{sentiment.overall_sentiment:.2f}")
+                st.metric("Overall Score", f"{sentiment['overall_score']}/100")
             with col2:
-                zone_emoji = {
-                    'optimal': '🟢',
-                    'positive': '🟡', 
-                    'neutral': '⚪',
-                    'concerning': '🟠',
-                    'critical': '🔴'
-                }.get(sentiment.sentiment_zone.value, '⚪')
-                st.metric("Zone", f"{zone_emoji} {sentiment.sentiment_zone.value.title()}")
+                ready_text = "✅ Ready" if sentiment['ready_to_send'] else "❌ Not Ready"
+                st.metric("Status", ready_text)
             with col3:
-                st.metric("Complaint Risk", f"{sentiment.banking_insights.complaint_probability:.0%}")
+                st.metric("Complaint Risk", f"{sentiment['customer_impact']['complaint_risk']:.0f}%")
             with col4:
-                st.metric("Segment Alignment", f"{sentiment.segment_alignment_score:.0%}")
+                st.metric("Compliance", f"{sentiment['compliance']['score']}")
             
-            # Quick insights
-            if sentiment.quick_wins:
-                st.markdown("**⚡ Quick Wins:**")
-                for win in sentiment.quick_wins[:3]:
-                    st.write(f"• {win}")
+            # Executive summary
+            if 'executive_summary' in sentiment:
+                st.info(sentiment['executive_summary'])
         
         st.markdown('</div>', unsafe_allow_html=True)
     
