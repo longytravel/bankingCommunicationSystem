@@ -1,0 +1,52 @@
+{
+  "rules": [
+    {
+      "id": "voice_selection_premium",
+      "name": "Premium Voice Selection",
+      "enabled": true,
+      "priority": 5,
+      "tags": ["voice_config"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "metadata.voice_style",
+            "operator": "equals",
+            "value": "premium"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "preferred_voices",
+          "value": ["echo", "onyx", "shimmer"]
+        }
+      ]
+    },
+    {
+      "id": "voice_selection_engaging",
+      "name": "Engaging Voice Selection",
+      "enabled": true,
+      "priority": 6,
+      "tags": ["voice_config"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "metadata.voice_style",
+            "operator": "equals",
+            "value": "engaging"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "preferred_voices",
+          "value": ["fable", "nova", "shimmer"]
+        }
+      ]
+    }
+  ]
+}

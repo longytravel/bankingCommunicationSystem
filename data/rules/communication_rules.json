@@ -1,0 +1,384 @@
+{
+  "rules": [
+    {
+      "id": "voice_for_premium_customers",
+      "name": "Voice Notes for Premium Customers",
+      "description": "Enable voice notes for high-value customers",
+      "enabled": true,
+      "priority": 100,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.account_balance",
+            "operator": "greater_than",
+            "value": 50000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_style",
+          "value": "premium"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_speed",
+          "value": 0.9
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Premium customer - enhanced service"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility"]
+    },
+    {
+      "id": "voice_for_urgent_communications",
+      "name": "Voice Notes for Urgent Messages",
+      "description": "Enable voice notes for urgent communications",
+      "enabled": true,
+      "priority": 95,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "document.urgency",
+            "operator": "equals",
+            "value": "HIGH"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_style",
+          "value": "urgent"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_speed",
+          "value": 1.1
+        },
+        {
+          "type": "set_value",
+          "key": "priority_channel",
+          "value": "immediate"
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Urgent communication requiring immediate attention"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility", "urgent"]
+    },
+    {
+      "id": "voice_for_vulnerable_customers",
+      "name": "Voice Notes for Vulnerable Customers",
+      "description": "Enable voice notes for customers with accessibility needs",
+      "enabled": true,
+      "priority": 90,
+      "conditions": {
+        "logic": "OR",
+        "rules": [
+          {
+            "field": "customer.accessibility_needs",
+            "operator": "contains",
+            "value": "visual"
+          },
+          {
+            "field": "customer.accessibility_needs",
+            "operator": "contains",
+            "value": "reading"
+          },
+          {
+            "field": "customer.age",
+            "operator": "greater_than",
+            "value": 75
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_style",
+          "value": "clear_and_slow"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_speed",
+          "value": 0.85
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Accessibility support - enhanced communication"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility", "accessibility"]
+    },
+    {
+      "id": "voice_for_engaged_digital_valuable",
+      "name": "Voice for Engaged Digital Valuable Customers",
+      "description": "Enable voice notes for highly engaged digital customers with significant balances",
+      "enabled": true,
+      "priority": 85,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.digital_logins_per_month",
+            "operator": "greater_than",
+            "value": 25
+          },
+          {
+            "field": "customer.account_balance",
+            "operator": "greater_than",
+            "value": 15000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_style",
+          "value": "engaging"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_speed",
+          "value": 1.0
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Highly engaged valuable digital customer"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility"]
+    },
+    {
+      "id": "voice_for_life_events",
+      "name": "Voice for Customers with Life Events",
+      "description": "Enable voice notes for customers with recent life events for personal touch",
+      "enabled": true,
+      "priority": 80,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.recent_life_events",
+            "operator": "not_equals",
+            "value": "None"
+          },
+          {
+            "field": "customer.recent_life_events",
+            "operator": "not_equals",
+            "value": "unknown"
+          },
+          {
+            "field": "customer.account_balance",
+            "operator": "greater_than",
+            "value": 5000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "voice_style",
+          "value": "warm_personal"
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Customer with recent life event - personal touch needed"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility"]
+    },
+    {
+      "id": "no_voice_for_hearing_impaired",
+      "name": "Disable Voice for Hearing Impaired",
+      "description": "Disable voice notes for customers with hearing impairments",
+      "enabled": true,
+      "priority": 200,
+      "conditions": {
+        "logic": "OR",
+        "rules": [
+          {
+            "field": "customer.accessibility_needs",
+            "operator": "contains",
+            "value": "hearing"
+          },
+          {
+            "field": "customer.accessibility_needs",
+            "operator": "contains",
+            "value": "deaf"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "disable",
+          "feature": "voice_note"
+        },
+        {
+          "type": "set_value",
+          "key": "reason",
+          "value": "Customer has hearing accessibility needs"
+        }
+      ],
+      "tags": ["voice_note", "channel_eligibility", "accessibility"]
+    },
+    {
+      "id": "sms_for_digital_customers",
+      "name": "SMS for Digital Customers",
+      "description": "Enable SMS for digitally active customers",
+      "enabled": true,
+      "priority": 100,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.digital_logins_per_month",
+            "operator": "greater_than",
+            "value": 10
+          },
+          {
+            "field": "customer.mobile_app_usage",
+            "operator": "not_equals",
+            "value": "Never"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "sms"
+        },
+        {
+          "type": "set_value",
+          "key": "sms_style",
+          "value": "concise_modern"
+        }
+      ],
+      "tags": ["sms", "channel_eligibility"]
+    },
+    {
+      "id": "email_for_all",
+      "name": "Email Default Channel",
+      "description": "Email is default for all customers",
+      "enabled": true,
+      "priority": 1,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.customer_id",
+            "operator": "is_not_null",
+            "value": null
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "email"
+        }
+      ],
+      "tags": ["email", "channel_eligibility"]
+    },
+    {
+      "id": "letter_for_traditional",
+      "name": "Letter for Traditional Customers",
+      "description": "Enable physical letters for traditional banking customers",
+      "enabled": true,
+      "priority": 100,
+      "conditions": {
+        "logic": "OR",
+        "rules": [
+          {
+            "field": "customer.digital_logins_per_month",
+            "operator": "less_than",
+            "value": 2
+          },
+          {
+            "field": "customer.branch_visits_per_month",
+            "operator": "greater_than",
+            "value": 1
+          },
+          {
+            "field": "customer.age",
+            "operator": "greater_than",
+            "value": 70
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "letter"
+        },
+        {
+          "type": "set_value",
+          "key": "letter_style",
+          "value": "formal_traditional"
+        }
+      ],
+      "tags": ["letter", "channel_eligibility"]
+    },
+    {
+      "id": "regulatory_requires_letter",
+      "name": "Regulatory Communications Require Letter",
+      "description": "Regulatory documents must be sent as physical letters",
+      "enabled": true,
+      "priority": 200,
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "document.type",
+            "operator": "equals",
+            "value": "REGULATORY"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "letter"
+        },
+        {
+          "type": "set_value",
+          "key": "letter_priority",
+          "value": "compliance_required"
+        }
+      ],
+      "tags": ["letter", "channel_eligibility", "compliance"]
+    }
+  ]
+}

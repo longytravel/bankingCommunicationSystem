@@ -1,0 +1,50 @@
+{
+  "rules": [
+    {
+      "id": "eligible_for_offers",
+      "name": "Minimum Balance for Offers",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["validation", "offers"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.account_balance",
+            "operator": "greater_than_or_equal",
+            "value": 1000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "promotional_offers"
+        }
+      ]
+    },
+    {
+      "id": "max_age_digital",
+      "name": "Maximum Age for Digital Only",
+      "enabled": true,
+      "priority": 20,
+      "tags": ["validation", "digital"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.age",
+            "operator": "less_than_or_equal",
+            "value": 70
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "enable",
+          "feature": "digital_only_communication"
+        }
+      ]
+    }
+  ]
+}

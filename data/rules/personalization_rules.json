@@ -1,0 +1,206 @@
+{
+  "rules": [
+    {
+      "id": "tone_elderly",
+      "name": "Elderly Customer Tone",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["personalization", "tone"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.age",
+            "operator": "greater_than",
+            "value": 60
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "tone",
+          "value": "formal_respectful"
+        },
+        {
+          "type": "set_value",
+          "key": "salutation",
+          "value": "use_title"
+        }
+      ]
+    },
+    {
+      "id": "tone_young",
+      "name": "Young Customer Tone",
+      "enabled": true,
+      "priority": 11,
+      "tags": ["personalization", "tone"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.age",
+            "operator": "less_than",
+            "value": 35
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "tone",
+          "value": "modern_friendly"
+        },
+        {
+          "type": "set_value",
+          "key": "use_emojis",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "channel_digital_heavy",
+      "name": "Digital Heavy User Channel",
+      "enabled": true,
+      "priority": 20,
+      "tags": ["personalization", "channel"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.digital_logins_per_month",
+            "operator": "greater_than",
+            "value": 20
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "channel_focus",
+          "value": "app_digital"
+        },
+        {
+          "type": "set_value",
+          "key": "mention_app_features",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "premium_customer_offers",
+      "name": "Premium Customer Offers",
+      "enabled": true,
+      "priority": 5,
+      "tags": ["personalization", "offers"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.account_balance",
+            "operator": "greater_than",
+            "value": 20000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "offer_type",
+          "value": "premium_services"
+        },
+        {
+          "type": "add_tag",
+          "tag": "wealth_management"
+        }
+      ]
+    },
+    {
+      "id": "low_balance_support",
+      "name": "Low Balance Support",
+      "enabled": true,
+      "priority": 6,
+      "tags": ["personalization", "support"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.account_balance",
+            "operator": "less_than",
+            "value": 1000
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "offer_type",
+          "value": "budgeting_tools"
+        },
+        {
+          "type": "set_value",
+          "key": "mention_fee_waivers",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "loyalty_acknowledgment",
+      "name": "Long Term Customer Loyalty",
+      "enabled": true,
+      "priority": 15,
+      "tags": ["personalization", "loyalty"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.years_with_bank",
+            "operator": "greater_than",
+            "value": 5
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "acknowledge_loyalty",
+          "value": true
+        },
+        {
+          "type": "set_value",
+          "key": "loyalty_message_years",
+          "value": "dynamic"
+        }
+      ]
+    },
+    {
+      "id": "email_engagement_low",
+      "name": "Low Email Engagement",
+      "enabled": true,
+      "priority": 25,
+      "tags": ["personalization", "content_length"],
+      "conditions": {
+        "logic": "AND",
+        "rules": [
+          {
+            "field": "customer.email_opens_per_month",
+            "operator": "less_than",
+            "value": 5
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_value",
+          "key": "content_style",
+          "value": "brief_action_focused"
+        },
+        {
+          "type": "set_value",
+          "key": "max_email_length",
+          "value": 200
+        }
+      ]
+    }
+  ]
+}
