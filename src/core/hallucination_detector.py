@@ -375,6 +375,9 @@ Return ONLY the JSON array, no other text."""
         findings = []
         content_lower = content.lower()
         
+        # Get the original letter text from truth database
+        letter_text = truth_database.get('letter_facts', {}).get('full_text', '')
+        
         # Check for common hallucination patterns
         
         # 1. Check for advisor/staff names not in source
@@ -410,7 +413,8 @@ Return ONLY the JSON array, no other text."""
             matches = re.finditer(pattern, content)
             for match in matches:
                 location = match.group(1)
-                if location not in original_letter and location not in str(truth_database):
+                # FIX: Use letter_text instead of undefined original_letter
+                if location not in letter_text and location not in str(truth_database):
                     findings.append(HallucinationFinding(
                         text=match.group(0),
                         category=HallucinationCategory.LOCATION,
@@ -427,7 +431,7 @@ Return ONLY the JSON array, no other text."""
         year_matches = re.finditer(year_pattern, content)
         for match in year_matches:
             year = match.group(0)
-            if year not in original_letter and year not in str(truth_database):
+            if year not in letter_text and year not in str(truth_database):
                 findings.append(HallucinationFinding(
                     text=year,
                     category=HallucinationCategory.DATE_TIME,
