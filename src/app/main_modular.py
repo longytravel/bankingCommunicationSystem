@@ -646,11 +646,30 @@ class PersonalizationApp:
                                     # TRIGGER SENTIMENT ANALYSIS AUTOMATICALLY AFTER REFINEMENT
                                     if SENTIMENT_AVAILABLE and not st.session_state.get('sentiment_analysis_result'):
                                         with st.spinner("🎭 Analyzing sentiment of refined email..."):
-                                            sentiment_result = analyze_email_sentiment(
-                                                refined_result,
-                                                st.session_state.shared_context
-                                            )
-                                            st.session_state.sentiment_analysis_result = sentiment_result
+                                            try:
+                                                print(f"DEBUG: About to analyze sentiment")
+                                                print(f"  refined_result type: {type(refined_result)}")
+                                                print(f"  refined_result is None: {refined_result is None}")
+                                                
+                                                sentiment_result = analyze_email_sentiment(
+                                                    refined_result,
+                                                    st.session_state.shared_context
+                                                )
+                                                
+                                                print(f"DEBUG: Sentiment analysis complete")
+                                                print(f"  sentiment_result type: {type(sentiment_result)}")
+                                                print(f"  sentiment_result is None: {sentiment_result is None}")
+                                                if sentiment_result:
+                                                    print(f"  overall_score: {sentiment_result.overall_score}")
+                                                
+                                                st.session_state.sentiment_analysis_result = sentiment_result
+                                                
+                                            except Exception as e:
+                                                print(f"ERROR in sentiment analysis: {e}")
+                                                import traceback
+                                                traceback.print_exc()
+                                                st.error(f"Sentiment analysis failed: {str(e)}")
+                                                sentiment_result = None
                                             
                                         # Display sentiment analysis
                                         st.markdown("---")

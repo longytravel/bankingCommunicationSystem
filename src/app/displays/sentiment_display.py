@@ -1,7 +1,7 @@
 """
-Sentiment Display Module - Advanced Visualization of Email Sentiment Analysis
-Creates stunning visualizations for multi-dimensional sentiment insights
-Designed to impress in demos with rich, interactive displays
+Sentiment Display Module - Clean Executive Dashboard
+Shows banking sentiment intelligence with clear WHY explanations
+Designed for stakeholder clarity and actionable insights
 """
 
 import streamlit as st
@@ -14,296 +14,187 @@ import json
 try:
     from src.core.sentiment_analyzer import (
         SentimentAnalysisResult,
-        EmotionalDimension,
-        BankingOutcome,
+        SentimentCategory,
+        ComplianceStatus,
         SentimentZone,
-        SentimentRecommendation
+        ActionableInsight,
+        QuickWin,
+        SentimentScore,
+        ComplianceCheck,
+        CustomerImpact,
+        LinguisticQuality
     )
     SENTIMENT_AVAILABLE = True
-except ImportError:
+    print("✅ Sentiment display: All imports successful")
+except ImportError as e:
     SENTIMENT_AVAILABLE = False
-    print("⚠️ Sentiment analyzer types not available")
+    print(f"⚠️ Sentiment analyzer types not available: {e}")
+    import traceback
+    traceback.print_exc()
 
 class SentimentDisplay(BaseChannelDisplay):
-    """Display handler for advanced sentiment analysis results"""
+    """Display handler for banking sentiment intelligence"""
     
     def __init__(self):
-        super().__init__("Sentiment Analysis", "🎭")
+        super().__init__("Sentiment Analysis", "🎯")
         self.style = """
         <style>
-        /* Main container */
-        .sentiment-container {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 2rem;
-            border-radius: 15px;
-            margin: 2rem 0;
-            color: white;
+        /* Clean, professional styling */
+        .executive-summary {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 4px solid #006A4D;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
         }
         
-        /* Sentiment gauge */
-        .sentiment-gauge {
+        .score-card {
             background: white;
-            border-radius: 15px;
-            padding: 2rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            height: 100%;
         }
         
-        .gauge-meter {
-            height: 40px;
-            background: linear-gradient(to right, 
-                #ef4444 0%, 
-                #f59e0b 25%, 
-                #eab308 50%, 
-                #84cc16 75%, 
-                #22c55e 100%);
-            border-radius: 20px;
-            position: relative;
-            margin: 1rem 0;
-        }
-        
-        .gauge-needle {
-            position: absolute;
-            top: -15px;
-            width: 70px;
-            height: 70px;
-            background: white;
-            border: 4px solid #764ba2;
-            border-radius: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .score-large {
+            font-size: 3em;
             font-weight: bold;
-            font-size: 1.2em;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            margin: 0.5rem 0;
         }
         
-        /* Emotional dimensions radar */
-        .emotion-card {
+        .score-positive { color: #28a745; }
+        .score-neutral { color: #ffc107; }
+        .score-negative { color: #dc3545; }
+        
+        .why-box {
+            background: #f8f9fa;
+            border-left: 3px solid #17a2b8;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+        
+        .why-text {
+            color: #495057;
+            font-style: italic;
+            margin: 0;
+        }
+        
+        .metric-card {
             background: white;
-            border-radius: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
             padding: 1.5rem;
             margin: 1rem 0;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         
-        .dimension-bar {
-            background: #e5e7eb;
-            height: 30px;
-            border-radius: 15px;
-            margin: 0.5rem 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .dimension-fill {
-            height: 100%;
-            border-radius: 15px;
-            transition: width 0.5s ease;
-            display: flex;
-            align-items: center;
-            padding-left: 1rem;
-            color: white;
-            font-weight: bold;
-        }
-        
-        /* Emotional journey */
-        .journey-container {
-            background: white;
-            border-radius: 15px;
-            padding: 2rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        
-        .journey-path {
+        .metric-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 2rem 0;
-            position: relative;
+            margin-bottom: 1rem;
         }
         
-        .journey-point {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
+        .metric-title {
             font-weight: bold;
-            z-index: 2;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            font-size: 1.1em;
+            color: #212529;
         }
         
-        .journey-line {
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(to right, var(--start-color), var(--end-color));
-            z-index: 1;
-        }
-        
-        /* Banking insights cards */
-        .banking-card {
-            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-            color: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
-        }
-        
-        .risk-indicator {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 25px;
+        .metric-value {
+            font-size: 1.3em;
             font-weight: bold;
-            margin: 0.25rem;
         }
         
-        .risk-high {
-            background: #ef4444;
-            color: white;
-        }
+        .status-pass { color: #28a745; }
+        .status-warning { color: #ffc107; }
+        .status-fail { color: #dc3545; }
         
-        .risk-medium {
-            background: #f59e0b;
-            color: white;
-        }
-        
-        .risk-low {
-            background: #22c55e;
-            color: white;
-        }
-        
-        /* Recommendations */
-        .recommendation-card {
-            background: white;
-            border-left: 5px solid;
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        }
-        
-        .rec-high {
-            border-left-color: #ef4444;
-            background: #fef2f2;
-        }
-        
-        .rec-medium {
-            border-left-color: #f59e0b;
-            background: #fffbeb;
-        }
-        
-        .rec-low {
-            border-left-color: #3b82f6;
-            background: #eff6ff;
-        }
-        
-        /* Sentiment heatmap */
-        .heatmap-container {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        
-        .heatmap-paragraph {
+        .red-flag {
+            background: #fff5f5;
+            border-left: 4px solid #dc3545;
             padding: 1rem;
             margin: 0.5rem 0;
-            border-radius: 8px;
-            border: 2px solid;
-            transition: transform 0.2s;
-            cursor: pointer;
+            border-radius: 4px;
         }
         
-        .heatmap-paragraph:hover {
-            transform: translateX(5px);
-        }
-        
-        /* Psychological profile */
-        .psych-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        
-        .psych-metric {
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .psych-score {
-            font-size: 2.5em;
-            font-weight: bold;
+        .warning-flag {
+            background: #fffbf0;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
             margin: 0.5rem 0;
+            border-radius: 4px;
         }
         
-        .psych-label {
-            font-size: 0.9em;
-            opacity: 0.9;
+        .opportunity {
+            background: #f0f9ff;
+            border-left: 4px solid #17a2b8;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
         }
         
-        /* Quick wins */
         .quick-win {
-            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-            color: white;
+            background: #f0fff4;
+            border: 1px solid #28a745;
             padding: 1rem;
-            border-radius: 8px;
             margin: 0.5rem 0;
-            display: flex;
-            align-items: center;
+            border-radius: 4px;
         }
         
-        .quick-win::before {
-            content: "⚡";
-            font-size: 1.5em;
+        .decision-box {
+            background: white;
+            border: 2px solid;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .ready-yes {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .ready-no {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .evidence-list {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        
+        .evidence-item {
+            padding: 0.25rem 0;
+            color: #6c757d;
+        }
+        
+        /* Traffic light indicators */
+        .traffic-light {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
             margin-right: 0.5rem;
         }
         
-        /* Outcome predictions */
-        .outcome-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
+        .light-green { background: #28a745; }
+        .light-amber { background: #ffc107; }
+        .light-red { background: #dc3545; }
         
-        .outcome-card {
-            background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 1rem;
-            text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .outcome-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        
-        .outcome-percentage {
-            font-size: 2em;
-            font-weight: bold;
-            margin: 0.5rem 0;
-        }
-        
-        .outcome-label {
-            font-size: 0.85em;
-            color: #6b7280;
+        /* Simplified headers */
+        h3 {
+            color: #212529;
+            font-size: 1.3em;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 0.5rem;
         }
         </style>
         """
@@ -314,519 +205,477 @@ class SentimentDisplay(BaseChannelDisplay):
         refined_email: Any,
         shared_context: Any
     ) -> None:
-        """Display comprehensive sentiment analysis with stunning visuals"""
+        """Display banking sentiment intelligence with clear WHY explanations"""
+        
+        # DEBUG: Log what we're receiving
+        print(f"DEBUG: display_sentiment_analysis called")
+        print(f"  sentiment_result type: {type(sentiment_result)}")
+        print(f"  sentiment_result is None: {sentiment_result is None}")
+        print(f"  SENTIMENT_AVAILABLE: {SENTIMENT_AVAILABLE}")
+        
+        if sentiment_result:
+            print(f"  sentiment_result.overall_score: {getattr(sentiment_result, 'overall_score', 'NO ATTR')}")
+            print(f"  sentiment_result.ready_to_send: {getattr(sentiment_result, 'ready_to_send', 'NO ATTR')}")
         
         if not sentiment_result or not SENTIMENT_AVAILABLE:
             st.error("❌ No sentiment analysis available")
+            if not sentiment_result:
+                st.info("Debug: sentiment_result is None/False")
+            if not SENTIMENT_AVAILABLE:
+                st.info("Debug: SENTIMENT_AVAILABLE is False")
             return
         
         try:
-            # Apply custom styling
+            # Apply clean styling
             st.markdown(self.style, unsafe_allow_html=True)
             
-            # Header
-            self._display_header(sentiment_result)
+            # Executive Summary at the top
+            self._display_executive_summary(sentiment_result)
             
-            # Main sentiment gauge
-            self._display_sentiment_gauge(sentiment_result)
+            # Ready to Send Decision
+            self._display_send_decision(sentiment_result)
             
-            # Emotional journey visualization
-            self._display_emotional_journey(sentiment_result)
+            # Core Metrics Dashboard (4 cards)
+            self._display_core_metrics(sentiment_result)
             
-            # Multi-dimensional emotional analysis
-            self._display_emotional_dimensions(sentiment_result)
+            # Critical Issues Section
+            if sentiment_result.red_flags or sentiment_result.warnings:
+                self._display_issues(sentiment_result)
             
-            # Banking insights dashboard
-            self._display_banking_insights(sentiment_result)
+            # Business Impact Predictions
+            self._display_business_predictions(sentiment_result)
             
-            # Outcome predictions
-            self._display_outcome_predictions(sentiment_result)
+            # Quick Wins (if any)
+            if sentiment_result.quick_wins:
+                self._display_quick_wins(sentiment_result)
             
-            # Psychological profile
-            self._display_psychological_profile(sentiment_result)
+            # Detailed Analysis (expandable)
+            with st.expander("📊 Detailed Analysis", expanded=False):
+                self._display_detailed_analysis(sentiment_result)
             
-            # Sentiment heatmap
-            self._display_sentiment_heatmap(sentiment_result)
-            
-            # Recommendations
-            self._display_recommendations(sentiment_result)
-            
-            # Quick wins
-            self._display_quick_wins(sentiment_result)
-            
-            # Segment alignment
-            self._display_segment_alignment(sentiment_result)
-            
-            # Action buttons
-            self._display_action_buttons(sentiment_result, refined_email)
+            # Actions
+            self._display_actions(sentiment_result, refined_email)
             
         except Exception as e:
             st.error(f"Error displaying sentiment analysis: {e}")
             import traceback
             st.error(traceback.format_exc())
     
-    def _display_header(self, result: 'SentimentAnalysisResult') -> None:
-        """Display impressive header"""
-        
-        zone_colors = {
-            'optimal': '#22c55e',
-            'positive': '#84cc16',
-            'neutral': '#eab308',
-            'concerning': '#f59e0b',
-            'critical': '#ef4444'
-        }
-        
-        zone_color = zone_colors.get(result.sentiment_zone.value, '#6b7280')
-        
+    def _display_executive_summary(self, result: 'SentimentAnalysisResult') -> None:
+        """Display executive summary with the main WHY"""
         st.markdown(f'''
-        <div class="sentiment-container">
-            <h1 style="text-align: center; margin-bottom: 0;">🎭 Advanced Sentiment Analysis</h1>
-            <p style="text-align: center; opacity: 0.9; margin-top: 0.5rem;">
-                Multi-Dimensional Emotional & Banking Intelligence
+        <div class="executive-summary">
+            <h2 style="margin-top: 0; color: #006A4D;">Banking Sentiment Intelligence Report</h2>
+            <p style="font-size: 1.2em; margin: 1rem 0;">
+                {result.executive_summary}
             </p>
-            <div style="text-align: center; margin-top: 1.5rem;">
-                <span style="background: {zone_color}; color: white; padding: 0.5rem 1.5rem; 
-                      border-radius: 25px; font-size: 1.2em; font-weight: bold;">
-                    {result.sentiment_zone.value.upper()} ZONE
-                </span>
-            </div>
+            <p style="color: #6c757d; margin: 0;">
+                Analysis completed: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+            </p>
         </div>
         ''', unsafe_allow_html=True)
     
-    def _display_sentiment_gauge(self, result: 'SentimentAnalysisResult') -> None:
-        """Display main sentiment gauge"""
-        
-        # Convert sentiment to percentage position (0-100)
-        position = (result.overall_sentiment + 1) * 50
-        
-        # Determine color based on sentiment
-        if result.overall_sentiment >= 0.5:
-            color = '#22c55e'
-            label = 'Excellent'
-        elif result.overall_sentiment >= 0:
-            color = '#84cc16'
-            label = 'Good'
-        elif result.overall_sentiment >= -0.5:
-            color = '#eab308'
-            label = 'Neutral'
+    def _display_send_decision(self, result: 'SentimentAnalysisResult') -> None:
+        """Display clear ready to send decision"""
+        if result.ready_to_send:
+            st.markdown('''
+            <div class="decision-box ready-yes">
+                <span class="traffic-light light-green"></span>
+                <span style="font-size: 1.5em; font-weight: bold; color: #28a745;">
+                    ✅ READY TO SEND
+                </span>
+                <p style="margin: 0.5rem 0 0 0; color: #495057;">
+                    No critical issues detected. Communication meets quality standards.
+                </p>
+            </div>
+            ''', unsafe_allow_html=True)
         else:
-            color = '#ef4444'
-            label = 'Poor'
-        
-        st.markdown(f'''
-        <div class="sentiment-gauge">
-            <h3 style="text-align: center; color: #1f2937;">Overall Sentiment Score</h3>
-            <div class="gauge-meter">
-                <div class="gauge-needle" style="left: {position}%; background: {color}; border-color: {color};">
-                    {result.overall_sentiment:.2f}
-                </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; color: #6b7280;">
-                <span>Very Negative</span>
-                <span>Neutral</span>
-                <span>Very Positive</span>
-            </div>
-            <p style="text-align: center; font-size: 1.5em; color: {color}; margin-top: 1rem;">
-                <strong>{label}</strong> - Confidence: {result.confidence_score:.0%}
-            </p>
-        </div>
-        ''', unsafe_allow_html=True)
-    
-    def _display_emotional_journey(self, result: 'SentimentAnalysisResult') -> None:
-        """Display emotional journey through the email"""
-        
-        journey = result.emotional_journey
-        
-        # Determine colors based on sentiment
-        def get_color(sentiment):
-            if sentiment >= 0.5:
-                return '#22c55e'
-            elif sentiment >= 0:
-                return '#84cc16'
-            elif sentiment >= -0.5:
-                return '#f59e0b'
-            else:
-                return '#ef4444'
-        
-        opening_color = get_color(journey.opening_sentiment)
-        middle_color = get_color(journey.middle_sentiment)
-        closing_color = get_color(journey.closing_sentiment)
-        
-        st.markdown("### 🎢 Emotional Journey")
-        
-        # Calculate gradient for the connecting line
-        gradient_start = opening_color
-        gradient_end = closing_color
-        
-        st.markdown(f'''
-        <div class="journey-container">
-            <h4 style="color: #1f2937; text-align: center;">How Sentiment Flows Through the Email</h4>
-            <div class="journey-path" style="--start-color: {gradient_start}; --end-color: {gradient_end};">
-                <div class="journey-line"></div>
-                <div class="journey-point" style="background: {opening_color};">
-                    <span style="font-size: 1.5em;">{journey.opening_sentiment:.1f}</span>
-                    <span style="font-size: 0.8em;">Opening</span>
-                </div>
-                <div class="journey-point" style="background: {middle_color};">
-                    <span style="font-size: 1.5em;">{journey.middle_sentiment:.1f}</span>
-                    <span style="font-size: 0.8em;">Middle</span>
-                </div>
-                <div class="journey-point" style="background: {closing_color};">
-                    <span style="font-size: 1.5em;">{journey.closing_sentiment:.1f}</span>
-                    <span style="font-size: 0.8em;">Closing</span>
-                </div>
-            </div>
-            <div style="text-align: center; color: #6b7280; margin-top: 1rem;">
-                <strong>Trajectory:</strong> {journey.trajectory.upper()} | 
-                <strong>Volatility:</strong> {journey.volatility:.0%}
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
-        
-        # Show dead zones and peak moments if any
-        if journey.dead_zones or journey.peak_moments:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if journey.dead_zones:
-                    st.warning(f"**⚠️ Emotional Dead Zones:** {', '.join(journey.dead_zones[:2])}")
-            
-            with col2:
-                if journey.peak_moments:
-                    st.success(f"**✨ Peak Moments:** {', '.join(journey.peak_moments[:2])}")
-    
-    def _display_emotional_dimensions(self, result: 'SentimentAnalysisResult') -> None:
-        """Display multi-dimensional emotional analysis"""
-        
-        st.markdown("### 🎯 Emotional Dimensions")
-        
-        # Create two columns for dimensions
-        col1, col2 = st.columns(2)
-        
-        dimensions_list = list(result.emotional_dimensions.items())
-        half = len(dimensions_list) // 2
-        
-        for i, (dimension, score) in enumerate(dimensions_list):
-            # Determine color based on dimension and score
-            if dimension == EmotionalDimension.ANXIETY:
-                # For anxiety, lower is better
-                color = '#ef4444' if score > 0.6 else '#f59e0b' if score > 0.3 else '#22c55e'
-            else:
-                # For others, higher is generally better
-                color = '#22c55e' if score > 0.7 else '#f59e0b' if score > 0.4 else '#ef4444'
-            
-            html = f'''
-            <div class="emotion-card">
-                <h5 style="color: #1f2937; margin-bottom: 0.5rem;">
-                    {dimension.value.title()}
-                </h5>
-                <div class="dimension-bar">
-                    <div class="dimension-fill" style="width: {score*100}%; background: {color};">
-                        {score:.0%}
-                    </div>
-                </div>
-            </div>
-            '''
-            
-            if i < half:
-                with col1:
-                    st.markdown(html, unsafe_allow_html=True)
-            else:
-                with col2:
-                    st.markdown(html, unsafe_allow_html=True)
-    
-    def _display_banking_insights(self, result: 'SentimentAnalysisResult') -> None:
-        """Display banking-specific insights"""
-        
-        insights = result.banking_insights
-        
-        st.markdown("### 🏦 Banking Intelligence")
-        
-        # Risk indicators
-        complaint_risk_level = 'high' if insights.complaint_probability > 0.6 else 'medium' if insights.complaint_probability > 0.3 else 'low'
-        
-        st.markdown(f'''
-        <div class="banking-card">
-            <h4 style="margin-bottom: 1rem;">Risk Assessment</h4>
-            <div>
-                <span class="risk-indicator risk-{complaint_risk_level}">
-                    Complaint Risk: {insights.complaint_probability:.0%}
+            issues_count = len(result.red_flags)
+            st.markdown(f'''
+            <div class="decision-box ready-no">
+                <span class="traffic-light light-red"></span>
+                <span style="font-size: 1.5em; font-weight: bold; color: #dc3545;">
+                    ⚠️ NOT READY - {issues_count} ISSUE{'S' if issues_count != 1 else ''} TO FIX
                 </span>
-                <span class="risk-indicator risk-{insights.call_center_impact.lower()}">
-                    Call Center Impact: {insights.call_center_impact.upper()}
-                </span>
-                <span class="risk-indicator" style="background: #6366f1;">
-                    Regulatory Tone: {insights.regulatory_tone_score:.0%}
-                </span>
+                <p style="margin: 0.5rem 0 0 0; color: #495057;">
+                    Critical issues must be addressed before sending.
+                </p>
             </div>
-        </div>
-        ''', unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
+    
+    def _display_core_metrics(self, result: 'SentimentAnalysisResult') -> None:
+        """Display 4 core metrics with WHY explanations"""
+        st.markdown("### 📊 Core Metrics")
         
-        # Additional insights in columns
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
+        # 1. Sentiment Score
         with col1:
-            if insights.cross_sell_opportunities:
-                st.info(f"**💰 Cross-Sell Opportunities:**\n" + "\n".join(f"• {opp}" for opp in insights.cross_sell_opportunities[:3]))
-        
-        with col2:
-            if insights.trust_markers_present:
-                st.success(f"**✅ Trust Markers:**\n" + "\n".join(f"• {marker}" for marker in insights.trust_markers_present[:3]))
-        
-        with col3:
-            if insights.risk_flags:
-                st.error(f"**🚩 Risk Flags:**\n" + "\n".join(f"• {flag}" for flag in insights.risk_flags[:3]))
-    
-    def _display_outcome_predictions(self, result: 'SentimentAnalysisResult') -> None:
-        """Display predicted customer outcomes"""
-        
-        st.markdown("### 🔮 Outcome Predictions")
-        
-        st.markdown('<div class="outcome-grid">', unsafe_allow_html=True)
-        
-        # Create cards for each outcome
-        outcomes_html = ""
-        for outcome, probability in result.outcome_predictions.items():
-            # Determine color based on outcome type and probability
-            if outcome in [BankingOutcome.COMPLAINT_RISK, BankingOutcome.CHURN_RISK]:
-                # For negative outcomes, lower is better
-                color = '#ef4444' if probability > 0.6 else '#f59e0b' if probability > 0.3 else '#22c55e'
+            score = result.sentiment_score.score
+            if score >= 30:
+                color_class = "score-positive"
+                icon = "😊"
+            elif score >= -30:
+                color_class = "score-neutral"
+                icon = "😐"
             else:
-                # For positive outcomes, higher is better
-                color = '#22c55e' if probability > 0.6 else '#f59e0b' if probability > 0.3 else '#ef4444'
-            
-            outcomes_html += f'''
-            <div class="outcome-card">
-                <div class="outcome-label">{outcome.value.replace('_', ' ').title()}</div>
-                <div class="outcome-percentage" style="color: {color};">
-                    {probability:.0%}
-                </div>
-            </div>
-            '''
-        
-        st.markdown(outcomes_html + '</div>', unsafe_allow_html=True)
-    
-    def _display_psychological_profile(self, result: 'SentimentAnalysisResult') -> None:
-        """Display psychological profile analysis"""
-        
-        st.markdown("### 🧠 Psychological Profile")
-        
-        profile = result.psychological_profile
-        
-        metrics = [
-            ("Cognitive Load", profile.cognitive_load, "How easy to understand"),
-            ("Psychological Safety", profile.psychological_safety, "Feeling of security"),
-            ("Autonomy Support", profile.autonomy_support, "Empowerment level"),
-            ("Social Connection", profile.social_connection, "Human warmth"),
-            ("Competence Building", profile.competence_building, "Educational value")
-        ]
-        
-        st.markdown('<div class="psych-grid">', unsafe_allow_html=True)
-        
-        for name, score, description in metrics:
-            # Determine color based on score
-            if score > 0.7:
-                gradient = "linear-gradient(135deg, #34d399 0%, #10b981 100%)"
-            elif score > 0.4:
-                gradient = "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
-            else:
-                gradient = "linear-gradient(135deg, #f87171 0%, #ef4444 100%)"
+                color_class = "score-negative"
+                icon = "😟"
             
             st.markdown(f'''
-            <div class="psych-metric" style="background: {gradient};">
-                <div class="psych-label">{name}</div>
-                <div class="psych-score">{score:.0%}</div>
-                <div style="font-size: 0.8em; opacity: 0.9;">{description}</div>
+            <div class="score-card">
+                <div class="metric-title">Sentiment Score</div>
+                <div class="score-large {color_class}">{score}</div>
+                <div style="font-size: 2em;">{icon}</div>
+                <div class="why-box">
+                    <p class="why-text">WHY: {result.sentiment_score.why}</p>
+                </div>
             </div>
             ''', unsafe_allow_html=True)
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 2. Compliance Check
+        with col2:
+            status = result.compliance_check.status
+            if status == ComplianceStatus.PASS:
+                status_color = "status-pass"
+                status_text = "✅ PASS"
+            elif status == ComplianceStatus.WARNING:
+                status_color = "status-warning"
+                status_text = "⚠️ WARNING"
+            else:
+                status_color = "status-fail"
+                status_text = "❌ FAIL"
+            
+            st.markdown(f'''
+            <div class="score-card">
+                <div class="metric-title">Compliance</div>
+                <div class="score-large {status_color}">{result.compliance_check.tcf_score}</div>
+                <div style="font-size: 1.2em; margin: 0.5rem 0;">{status_text}</div>
+                <div class="why-box">
+                    <p class="why-text">WHY: {result.compliance_check.why}</p>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+        
+        # 3. Complaint Risk
+        with col3:
+            risk = result.customer_impact.complaint_probability
+            if risk < 30:
+                risk_color = "score-positive"
+                risk_level = "Low"
+            elif risk < 60:
+                risk_color = "score-neutral"
+                risk_level = "Medium"
+            else:
+                risk_color = "score-negative"
+                risk_level = "High"
+            
+            st.markdown(f'''
+            <div class="score-card">
+                <div class="metric-title">Complaint Risk</div>
+                <div class="score-large {risk_color}">{risk:.0f}%</div>
+                <div style="font-size: 1.2em;">{risk_level} Risk</div>
+                <div class="why-box">
+                    <p class="why-text">WHY: {result.customer_impact.why}</p>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+        
+        # 4. Readability
+        with col4:
+            readability = result.linguistic_quality.readability_score
+            grade = result.linguistic_quality.grade_level
+            if readability >= 60:
+                read_color = "score-positive"
+                read_level = "Easy"
+            elif readability >= 30:
+                read_color = "score-neutral"
+                read_level = "Moderate"
+            else:
+                read_color = "score-negative"
+                read_level = "Difficult"
+            
+            st.markdown(f'''
+            <div class="score-card">
+                <div class="metric-title">Readability</div>
+                <div class="score-large {read_color}">{readability}</div>
+                <div style="font-size: 1.2em;">Grade {grade:.0f}</div>
+                <div class="why-box">
+                    <p class="why-text">WHY: {result.linguistic_quality.why}</p>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
     
-    def _display_sentiment_heatmap(self, result: 'SentimentAnalysisResult') -> None:
-        """Display paragraph-by-paragraph sentiment heatmap"""
+    def _display_issues(self, result: 'SentimentAnalysisResult') -> None:
+        """Display issues that need attention"""
+        st.markdown("### ⚠️ Issues to Address")
         
-        if not result.heatmap_data.get('paragraphs'):
-            return
-        
-        st.markdown("### 🌡️ Sentiment Heatmap")
-        
-        with st.expander("View paragraph-by-paragraph sentiment", expanded=False):
-            for para_data in result.heatmap_data['paragraphs']:
-                sentiment = para_data['sentiment']
-                
-                # Determine color and border based on sentiment
-                if sentiment >= 0.5:
-                    bg_color = '#dcfce7'
-                    border_color = '#22c55e'
-                elif sentiment >= 0:
-                    bg_color = '#fef3c7'
-                    border_color = '#f59e0b'
-                else:
-                    bg_color = '#fee2e2'
-                    border_color = '#ef4444'
-                
+        # Red Flags (Must Fix)
+        if result.red_flags:
+            for flag in result.red_flags:
                 st.markdown(f'''
-                <div class="heatmap-paragraph" style="background: {bg_color}; border-color: {border_color};">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div style="flex: 1;">
-                            <strong>Paragraph {para_data['index'] + 1}</strong><br>
-                            <span style="color: #6b7280; font-size: 0.9em;">{para_data['text']}</span>
-                        </div>
-                        <div style="background: {border_color}; color: white; padding: 0.25rem 0.75rem; 
-                             border-radius: 15px; margin-left: 1rem;">
-                            {sentiment:.2f}
-                        </div>
-                    </div>
+                <div class="red-flag">
+                    <strong>🔴 CRITICAL: {flag.issue}</strong><br>
+                    <span style="color: #dc3545;">Impact:</span> {flag.impact}<br>
+                    <span style="color: #28a745;">Fix:</span> {flag.fix}
+                    {f'<br><span style="color: #17a2b8;">Example:</span> <em>"{flag.example}"</em>' if flag.example else ''}
+                </div>
+                ''', unsafe_allow_html=True)
+        
+        # Warnings (Should Fix)
+        if result.warnings:
+            for warning in result.warnings[:3]:  # Show top 3
+                st.markdown(f'''
+                <div class="warning-flag">
+                    <strong>🟡 WARNING: {warning.issue}</strong><br>
+                    <span style="color: #ffc107;">Impact:</span> {warning.impact}<br>
+                    <span style="color: #28a745;">Suggestion:</span> {warning.fix}
                 </div>
                 ''', unsafe_allow_html=True)
     
-    def _display_recommendations(self, result: 'SentimentAnalysisResult') -> None:
-        """Display actionable recommendations"""
+    def _display_business_predictions(self, result: 'SentimentAnalysisResult') -> None:
+        """Display predicted business outcomes"""
+        st.markdown("### 📈 Predicted Business Impact")
         
-        if not result.recommendations:
-            return
+        col1, col2, col3 = st.columns(3)
         
-        st.markdown("### 💡 Recommendations")
-        
-        # Group by priority
-        high_priority = [r for r in result.recommendations if r.priority == 'high']
-        medium_priority = [r for r in result.recommendations if r.priority == 'medium']
-        low_priority = [r for r in result.recommendations if r.priority == 'low']
-        
-        for rec in high_priority[:3]:
+        with col1:
+            complaint_icon = "🚨" if result.will_cause_complaint else "✅"
+            complaint_text = "Likely" if result.will_cause_complaint else "Unlikely"
+            complaint_color = "#dc3545" if result.will_cause_complaint else "#28a745"
+            
             st.markdown(f'''
-            <div class="recommendation-card rec-high">
-                <h5 style="color: #dc2626; margin-bottom: 0.5rem;">🔴 HIGH PRIORITY - {rec.category.upper()}</h5>
-                <p><strong>Issue:</strong> {rec.issue}</p>
-                <p><strong>Suggestion:</strong> {rec.suggestion}</p>
-                <p><strong>Expected Impact:</strong> {rec.impact}</p>
-                {f'<p><em>Example: "{rec.example}"</em></p>' if rec.example else ''}
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Customer Complaint</span>
+                    <span style="font-size: 2em;">{complaint_icon}</span>
+                </div>
+                <div class="metric-value" style="color: {complaint_color};">{complaint_text}</div>
+                <div class="why-box">
+                    <p class="why-text">Based on: {result.customer_impact.complaint_probability:.0f}% probability</p>
+                </div>
             </div>
             ''', unsafe_allow_html=True)
         
-        for rec in medium_priority[:2]:
+        with col2:
+            call_icon = "📞" if result.will_cause_call else "✅"
+            call_text = "Likely" if result.will_cause_call else "Unlikely"
+            call_color = "#dc3545" if result.will_cause_call else "#28a745"
+            
             st.markdown(f'''
-            <div class="recommendation-card rec-medium">
-                <h5 style="color: #d97706; margin-bottom: 0.5rem;">🟡 MEDIUM PRIORITY - {rec.category.upper()}</h5>
-                <p><strong>Issue:</strong> {rec.issue}</p>
-                <p><strong>Suggestion:</strong> {rec.suggestion}</p>
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Call Center Contact</span>
+                    <span style="font-size: 2em;">{call_icon}</span>
+                </div>
+                <div class="metric-value" style="color: {call_color};">{call_text}</div>
+                <div class="why-box">
+                    <p class="why-text">Based on: {result.customer_impact.call_probability:.0f}% probability</p>
+                </div>
             </div>
             ''', unsafe_allow_html=True)
         
-        for rec in low_priority[:2]:
+        with col3:
+            nps = result.customer_impact.nps_impact
+            if nps > 0:
+                nps_icon = "📈"
+                nps_text = f"+{nps} points"
+                nps_color = "#28a745"
+            elif nps < 0:
+                nps_icon = "📉"
+                nps_text = f"{nps} points"
+                nps_color = "#dc3545"
+            else:
+                nps_icon = "➡️"
+                nps_text = "No change"
+                nps_color = "#6c757d"
+            
             st.markdown(f'''
-            <div class="recommendation-card rec-low">
-                <h5 style="color: #2563eb; margin-bottom: 0.5rem;">🔵 LOW PRIORITY - {rec.category.upper()}</h5>
-                <p><strong>Suggestion:</strong> {rec.suggestion}</p>
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">NPS Impact</span>
+                    <span style="font-size: 2em;">{nps_icon}</span>
+                </div>
+                <div class="metric-value" style="color: {nps_color};">{nps_text}</div>
+                <div class="why-box">
+                    <p class="why-text">{result.nps_impact_prediction.title()} impact expected</p>
+                </div>
             </div>
             ''', unsafe_allow_html=True)
     
     def _display_quick_wins(self, result: 'SentimentAnalysisResult') -> None:
-        """Display quick win improvements"""
-        
-        if not result.quick_wins:
-            return
-        
+        """Display quick improvements"""
         st.markdown("### ⚡ Quick Wins")
-        st.markdown("Simple changes with high impact:")
+        st.markdown("Simple changes that will improve the communication:")
         
-        for win in result.quick_wins[:5]:
-            st.markdown(f'<div class="quick-win">{win}</div>', unsafe_allow_html=True)
+        for win in result.quick_wins[:3]:
+            if isinstance(win, QuickWin):
+                st.markdown(f'''
+                <div class="quick-win">
+                    <strong>Improvement Opportunity:</strong><br>
+                    ❌ Current: <em>"{win.original}"</em><br>
+                    ✅ Better: <em>"{win.improved}"</em><br>
+                    <span style="color: #17a2b8;">WHY:</span> {win.why}<br>
+                    <span style="color: #28a745;">Impact:</span> {win.impact}
+                </div>
+                ''', unsafe_allow_html=True)
+            else:
+                # Handle string quick wins from older format
+                st.markdown(f'''
+                <div class="quick-win">
+                    ✨ {win}
+                </div>
+                ''', unsafe_allow_html=True)
     
-    def _display_segment_alignment(self, result: 'SentimentAnalysisResult') -> None:
-        """Display segment alignment analysis"""
+    def _display_detailed_analysis(self, result: 'SentimentAnalysisResult') -> None:
+        """Display detailed analysis for those who want more"""
         
-        st.markdown("### 🎯 Segment Alignment")
+        # Scoring Rationale
+        st.markdown("#### 📋 Detailed Scoring Rationale")
+        for category, rationale in result.scoring_rationale.items():
+            st.markdown(f"**{category.title()}:** {rationale}")
         
-        col1, col2 = st.columns([2, 1])
+        # Key Evidence
+        if result.key_evidence:
+            st.markdown("#### 🔍 Key Evidence")
+            st.markdown('<div class="evidence-list">', unsafe_allow_html=True)
+            for evidence in result.key_evidence:
+                st.markdown(f'<div class="evidence-item">• {evidence}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Comparison to Best Practice
+        if result.comparison_to_best_practice:
+            st.markdown("#### 🎯 Comparison to Best Practice")
+            st.info(result.comparison_to_best_practice)
+        
+        # Risk and Success Factors
+        col1, col2 = st.columns(2)
         
         with col1:
-            # Alignment score visualization
-            score = result.segment_alignment_score
-            color = '#22c55e' if score > 0.8 else '#f59e0b' if score > 0.6 else '#ef4444'
-            
-            st.markdown(f"""
-            **Alignment Score: {score:.0%}**
-            """)
-            st.progress(score)
-            
-            if result.segment_mismatches:
-                st.warning("**Mismatches found:**")
-                for mismatch in result.segment_mismatches[:3]:
-                    st.write(f"• {mismatch}")
+            if result.customer_impact.risk_factors:
+                st.markdown("#### ⚠️ Risk Factors")
+                for risk in result.customer_impact.risk_factors:
+                    st.write(f"• {risk}")
         
         with col2:
-            # Cultural sensitivity scores
-            st.metric("Cultural Appropriateness", f"{result.cultural_appropriateness:.0%}")
-            st.metric("Formality Score", f"{result.language_formality_score:.0%}")
-    
-    def _display_action_buttons(self, result: 'SentimentAnalysisResult', refined_email: Any) -> None:
-        """Display action buttons for next steps"""
+            if result.customer_impact.success_factors:
+                st.markdown("#### ✅ Success Factors")
+                for success in result.customer_impact.success_factors:
+                    st.write(f"• {success}")
         
+        # Compliance Details
+        if result.compliance_check.issues:
+            st.markdown("#### 🏛️ Compliance Issues")
+            for issue, fix in zip(result.compliance_check.issues, result.compliance_check.fixes):
+                st.warning(f"**Issue:** {issue}\n\n**Fix:** {fix}")
+    
+    def _display_actions(self, result: 'SentimentAnalysisResult', refined_email: Any) -> None:
+        """Display action buttons"""
         st.markdown("---")
         st.markdown("### 🚀 Actions")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if result.sentiment_zone in [SentimentZone.CONCERNING, SentimentZone.CRITICAL]:
-                if st.button("🔧 Auto-Improve Sentiment", type="primary", use_container_width=True):
-                    st.session_state.improve_sentiment_triggered = True
-                    st.info("Sentiment improvement would be triggered here")
+            if not result.ready_to_send:
+                if st.button("🔧 Auto-Fix Issues", type="primary", use_container_width=True):
+                    st.info("Auto-fix would apply all suggested improvements")
         
         with col2:
-            if st.button("📊 Export Analysis", use_container_width=True):
-                # Create downloadable report
-                report = self._create_analysis_report(result)
+            if st.button("📊 Export Report", use_container_width=True):
+                report = self._create_executive_report(result)
                 st.download_button(
                     "Download Report",
                     report,
-                    file_name=f"sentiment_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    file_name=f"sentiment_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json"
                 )
         
         with col3:
-            if result.banking_insights.complaint_probability > 0.5:
+            if result.customer_impact.complaint_probability > 50:
                 if st.button("⚠️ Flag for Review", use_container_width=True):
-                    st.warning("Email flagged for manual review before sending")
+                    st.warning("Flagged for senior review before sending")
         
         with col4:
-            if st.button("✅ Accept & Send", use_container_width=True):
-                st.success("Email accepted with current sentiment profile")
+            button_text = "✅ Accept & Send" if result.ready_to_send else "⚠️ Send Anyway"
+            button_type = "primary" if result.ready_to_send else "secondary"
+            if st.button(button_text, type=button_type, use_container_width=True):
+                if result.ready_to_send:
+                    st.success("Communication approved for sending")
+                else:
+                    st.error("Sending despite issues - logged for compliance")
     
-    def _create_analysis_report(self, result: 'SentimentAnalysisResult') -> str:
-        """Create downloadable analysis report"""
+    def _create_executive_report(self, result: 'SentimentAnalysisResult') -> str:
+        """Create executive-friendly report"""
         
         report = {
+            'executive_summary': result.executive_summary,
+            'ready_to_send': result.ready_to_send,
+            'overall_score': result.overall_score,
             'timestamp': result.analysis_timestamp,
-            'overall_sentiment': result.overall_sentiment,
-            'sentiment_zone': result.sentiment_zone.value,
-            'confidence': result.confidence_score,
-            'emotional_dimensions': {d.value: v for d, v in result.emotional_dimensions.items()},
-            'banking_insights': {
-                'complaint_probability': result.banking_insights.complaint_probability,
-                'call_center_impact': result.banking_insights.call_center_impact,
-                'cross_sell_opportunities': result.banking_insights.cross_sell_opportunities
-            },
-            'outcome_predictions': {o.value: v for o, v in result.outcome_predictions.items()},
-            'recommendations': [
-                {
-                    'priority': r.priority,
-                    'issue': r.issue,
-                    'suggestion': r.suggestion
+            
+            'core_metrics': {
+                'sentiment_score': {
+                    'value': result.sentiment_score.score,
+                    'category': result.sentiment_score.category.value,
+                    'why': result.sentiment_score.why
+                },
+                'compliance': {
+                    'status': result.compliance_check.status.value,
+                    'tcf_score': result.compliance_check.tcf_score,
+                    'why': result.compliance_check.why
+                },
+                'complaint_risk': {
+                    'probability': result.customer_impact.complaint_probability,
+                    'why': result.customer_impact.why
+                },
+                'readability': {
+                    'score': result.linguistic_quality.readability_score,
+                    'grade_level': result.linguistic_quality.grade_level,
+                    'why': result.linguistic_quality.why
                 }
-                for r in result.recommendations[:10]
-            ],
-            'quick_wins': result.quick_wins
+            },
+            
+            'predictions': {
+                'will_cause_complaint': result.will_cause_complaint,
+                'will_cause_call': result.will_cause_call,
+                'nps_impact': result.customer_impact.nps_impact
+            },
+            
+            'issues': {
+                'red_flags': [
+                    {
+                        'issue': flag.issue,
+                        'impact': flag.impact,
+                        'fix': flag.fix
+                    }
+                    for flag in result.red_flags
+                ],
+                'warnings': [
+                    {
+                        'issue': warning.issue,
+                        'impact': warning.impact,
+                        'fix': warning.fix
+                    }
+                    for warning in result.warnings[:5]
+                ]
+            },
+            
+            'quick_wins': [
+                {
+                    'original': win.original,
+                    'improved': win.improved,
+                    'why': win.why
+                } if isinstance(win, QuickWin) else str(win)
+                for win in result.quick_wins[:5]
+            ]
         }
         
         return json.dumps(report, indent=2)
     
-    # Required base class methods
+    # Required base class methods (keep for compatibility)
     def display_result(self, result: Any, shared_context: Any) -> None:
         """Required by base class"""
-        # This is called by the main display system
-        # We'll handle this differently since sentiment needs the refined email too
         pass
     
     def validate_result(self, result: Any, shared_context: Any) -> Dict[str, Any]:
@@ -838,21 +687,21 @@ class SentimentDisplay(BaseChannelDisplay):
             'metrics': {}
         }
         
-        if hasattr(result, 'overall_sentiment'):
-            validation['metrics']['overall_sentiment'] = result.overall_sentiment
-            
-            if result.sentiment_zone == SentimentZone.OPTIMAL:
-                validation['achievements'].append("Optimal sentiment achieved")
-            elif result.sentiment_zone == SentimentZone.CRITICAL:
-                validation['issues'].append("Critical sentiment issues detected")
+        if hasattr(result, 'ready_to_send'):
+            if result.ready_to_send:
+                validation['achievements'].append("Communication ready to send")
+            else:
+                validation['issues'].append(f"{len(result.red_flags)} critical issues to fix")
                 validation['is_valid'] = False
         
-        if hasattr(result, 'banking_insights'):
-            if result.banking_insights.complaint_probability > 0.7:
-                validation['issues'].append(f"High complaint risk: {result.banking_insights.complaint_probability:.0%}")
+        if hasattr(result, 'customer_impact'):
+            validation['metrics']['complaint_risk'] = f"{result.customer_impact.complaint_probability:.0f}%"
+            validation['metrics']['call_risk'] = f"{result.customer_impact.call_probability:.0f}%"
             
-            if result.banking_insights.complaint_probability < 0.3:
+            if result.customer_impact.complaint_probability < 30:
                 validation['achievements'].append("Low complaint risk")
+            elif result.customer_impact.complaint_probability > 60:
+                validation['issues'].append("High complaint risk")
         
         return validation
     
@@ -862,9 +711,9 @@ class SentimentDisplay(BaseChannelDisplay):
         if not hasattr(result, 'analysis_timestamp'):
             return "", "", ""
         
-        report = self._create_analysis_report(result)
+        report = self._create_executive_report(result)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"sentiment_analysis_{customer_name}_{timestamp}.json"
+        filename = f"sentiment_report_{customer_name}_{timestamp}.json"
         
         return report, filename, "application/json"
 
