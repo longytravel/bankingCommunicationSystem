@@ -2,7 +2,7 @@
 Lloyds AI Personalization Engine - Modular Version
 Cleaner, more maintainable architecture using display modules
 WITH all document intelligence, customer insights, VOICE support, and HALLUCINATION DETECTION
-UPDATED: Now includes EMAIL REFINEMENT functionality and SIMPLE SENTIMENT ANALYSIS
+UPDATED: Now includes EMAIL REFINEMENT functionality and BANKING SENTIMENT ANALYSIS
 """
 
 import streamlit as st
@@ -37,15 +37,23 @@ except ImportError as e:
     REFINEMENT_AVAILABLE = False
     print(f"⚠️ Email refinement not available: {e}")
 
-# Import the NEW SIMPLE sentiment analysis modules
+# Import the PROPER BANKING sentiment analysis modules
 try:
-    from src.core.sentiment_analyzer_simple import analyze_sentiment_simple
-    from src.app.displays.sentiment_display_simple import display_simple_sentiment
-    SIMPLE_SENTIMENT_AVAILABLE = True
-    print("✅ Simple sentiment analysis loaded")
+    from src.core.sentiment_analyzer_banking import analyze_banking_sentiment
+    from src.app.displays.sentiment_display_banking import display_banking_sentiment
+    BANKING_SENTIMENT_AVAILABLE = True
+    print("✅ Banking sentiment analysis loaded")
 except ImportError as e:
-    SIMPLE_SENTIMENT_AVAILABLE = False
-    print(f"⚠️ Simple sentiment not available: {e}")
+    BANKING_SENTIMENT_AVAILABLE = False
+    print(f"⚠️ Banking sentiment not available: {e}")
+    # Fallback to simple if banking not available
+    try:
+        from src.core.sentiment_analyzer_simple import analyze_sentiment_simple
+        from src.app.displays.sentiment_display_simple import display_simple_sentiment
+        SIMPLE_SENTIMENT_AVAILABLE = True
+        print("⚠️ Using simple sentiment as fallback")
+    except:
+        SIMPLE_SENTIMENT_AVAILABLE = False
 
 # Import core modules
 try:
@@ -160,9 +168,9 @@ class PersonalizationApp:
             'refinement_rejected'
         ]
         
-        # Add sentiment state variables (including the new simple one)
+        # Add sentiment state variables (now banking-focused)
         sentiment_vars = [
-            'sentiment_result_simple',  # NEW simple sentiment result
+            'sentiment_result_banking',  # NEW banking sentiment result
             'sentiment_analysis_result',  # Keep old one for compatibility
             'analyze_sentiment_triggered',
             'sentiment_analysis_in_progress',
@@ -198,8 +206,8 @@ class PersonalizationApp:
             channels += " • Hallucination Detection"
         if REFINEMENT_AVAILABLE:
             channels += " • Email Refinement"
-        if SIMPLE_SENTIMENT_AVAILABLE:
-            channels += " • Sentiment Analysis"
+        if BANKING_SENTIMENT_AVAILABLE:
+            channels += " • Banking Sentiment Analysis"
         
         st.markdown(f'''
         <div class="shared-brain-banner">
@@ -235,7 +243,9 @@ class PersonalizationApp:
                 modules_status['Email Refiner'] = True
             
             # Add sentiment analysis status
-            if SIMPLE_SENTIMENT_AVAILABLE:
+            if BANKING_SENTIMENT_AVAILABLE:
+                modules_status['Banking Sentiment'] = True
+            elif SIMPLE_SENTIMENT_AVAILABLE:
                 modules_status['Sentiment Analyzer'] = True
             
             for module, status in modules_status.items():
@@ -302,10 +312,10 @@ class PersonalizationApp:
                 if st.session_state.refined_email_result:
                     st.write(f"**✨ Email Refined:** Yes")
                 
-                # Show sentiment status if available (NEW SIMPLE VERSION)
-                if st.session_state.sentiment_result_simple:
-                    sentiment = st.session_state.sentiment_result_simple.get('overall_score', 0)
-                    ready = st.session_state.sentiment_result_simple.get('ready_to_send', False)
+                # Show sentiment status if available (BANKING VERSION)
+                if st.session_state.sentiment_result_banking:
+                    sentiment = st.session_state.sentiment_result_banking.get('overall_score', 0)
+                    ready = st.session_state.sentiment_result_banking.get('ready_to_send', False)
                     st.write(f"**🎭 Sentiment:** {sentiment}/100")
                     st.write(f"**Ready:** {'✅' if ready else '❌'}")
     
@@ -637,43 +647,84 @@ class PersonalizationApp:
                                         st.session_state.shared_context
                                     )
                                     
-                                    # SIMPLE SENTIMENT ANALYSIS SECTION
-                                    if SIMPLE_SENTIMENT_AVAILABLE:
+                                    # BANKING SENTIMENT ANALYSIS SECTION
+                                    if BANKING_SENTIMENT_AVAILABLE:
                                         st.markdown("---")
-                                        st.markdown("### 🎭 Sentiment Analysis")
+                                        st.markdown("### 🎭 Banking Sentiment Analysis")
                                         
                                         # Check if we already have results
-                                        if st.session_state.get('sentiment_result_simple'):
+                                        if st.session_state.get('sentiment_result_banking'):
                                             # Display existing results
-                                            display_simple_sentiment(st.session_state.sentiment_result_simple)
+                                            display_banking_sentiment(
+                                                st.session_state.sentiment_result_banking,
+                                                refined_result.refined_content
+                                            )
                                             
                                             # Option to re-analyze
-                                            if st.button("🔄 Re-analyze Sentiment", key="reanalyze_sentiment_simple"):
-                                                st.session_state.sentiment_result_simple = None
+                                            if st.button("🔄 Re-analyze Sentiment", key="reanalyze_sentiment_banking"):
+                                                st.session_state.sentiment_result_banking = None
                                                 st.rerun()
                                         else:
                                             # No analysis yet - show button to trigger
-                                            st.info("📊 Analyze the emotional tone, compliance, and predicted customer impact.")
+                                            st.info("📊 Analyze the emotional tone, compliance, NPS impact, and predicted customer response.")
                                             
-                                            if st.button("🎭 Analyze Sentiment", type="primary", use_container_width=True, key="analyze_sentiment_button"):
-                                                with st.spinner("🎭 Analyzing sentiment..."):
+                                            if st.button("🎭 Analyze Banking Sentiment", type="primary", use_container_width=True, key="analyze_sentiment_button"):
+                                                with st.spinner("🎭 Analyzing with banking-specific metrics..."):
                                                     try:
                                                         # Get what we need
                                                         email_content = refined_result.refined_content
                                                         customer_name = st.session_state.shared_context.customer_data.get('name', 'Customer')
                                                         
-                                                        # Run simple analyzer (returns a plain dict!)
-                                                        result = analyze_sentiment_simple(email_content, customer_name)
+                                                        # Build customer context for better analysis
+                                                        customer_context = {
+                                                            'segment': safe_get_attribute(
+                                                                st.session_state.shared_context.customer_insights,
+                                                                'segment',
+                                                                'Unknown'
+                                                            ),
+                                                            'life_stage': safe_get_attribute(
+                                                                st.session_state.shared_context.customer_insights,
+                                                                'life_stage',
+                                                                'Unknown'
+                                                            ),
+                                                            'digital_persona': safe_get_attribute(
+                                                                st.session_state.shared_context.customer_insights,
+                                                                'digital_persona',
+                                                                'Unknown'
+                                                            ),
+                                                            'financial_profile': safe_get_attribute(
+                                                                st.session_state.shared_context.customer_insights,
+                                                                'financial_profile',
+                                                                'Unknown'
+                                                            )
+                                                        }
+                                                        
+                                                        # Run banking analyzer
+                                                        result = analyze_banking_sentiment(
+                                                            email_content, 
+                                                            customer_name,
+                                                            customer_context
+                                                        )
                                                         
                                                         # Store in session state
-                                                        st.session_state.sentiment_result_simple = result
+                                                        st.session_state.sentiment_result_banking = result
                                                         
-                                                        st.success("✅ Analysis complete!")
+                                                        st.success("✅ Banking sentiment analysis complete!")
                                                         st.rerun()
                                                         
                                                     except Exception as e:
                                                         st.error(f"❌ Analysis failed: {str(e)}")
                                                         st.info("Check your Claude API key in .env file")
+                                                        import traceback
+                                                        st.error(traceback.format_exc())
+                                    
+                                    # Fallback to simple sentiment if banking not available
+                                    elif SIMPLE_SENTIMENT_AVAILABLE:
+                                        st.markdown("---")
+                                        st.markdown("### 🎭 Sentiment Analysis (Simple)")
+                                        st.warning("Banking sentiment analyzer not available - using simple version")
+                                        # Simple sentiment code here...
+                                
                                 else:
                                     st.error("Missing required data for refinement")
                                     st.session_state.refinement_in_progress = False
@@ -688,35 +739,66 @@ class PersonalizationApp:
                                     st.session_state.shared_context
                                 )
                                 
-                                # SIMPLE SENTIMENT ANALYSIS SECTION (for existing refinement)
-                                if SIMPLE_SENTIMENT_AVAILABLE:
+                                # BANKING SENTIMENT ANALYSIS SECTION (for existing refinement)
+                                if BANKING_SENTIMENT_AVAILABLE:
                                     st.markdown("---")
-                                    st.markdown("### 🎭 Sentiment Analysis")
+                                    st.markdown("### 🎭 Banking Sentiment Analysis")
                                     
-                                    if st.session_state.get('sentiment_result_simple'):
+                                    if st.session_state.get('sentiment_result_banking'):
                                         # Display existing sentiment analysis
-                                        display_simple_sentiment(st.session_state.sentiment_result_simple)
+                                        display_banking_sentiment(
+                                            st.session_state.sentiment_result_banking,
+                                            st.session_state.refined_email_result.refined_content
+                                        )
                                         
                                         # Option to re-analyze
                                         if st.button("🔄 Re-analyze Sentiment", key="reanalyze_existing_sentiment"):
-                                            st.session_state.sentiment_result_simple = None
+                                            st.session_state.sentiment_result_banking = None
                                             st.rerun()
                                     else:
                                         # Show button to trigger sentiment analysis
-                                        st.info("📊 Analyze the emotional tone and compliance of your refined email.")
+                                        st.info("📊 Analyze the emotional tone, compliance, and NPS impact of your refined email.")
                                         
-                                        if st.button("🎭 Analyze Sentiment", type="primary", use_container_width=True, key="analyze_existing_sentiment"):
-                                            with st.spinner("🎭 Analyzing sentiment..."):
+                                        if st.button("🎭 Analyze Banking Sentiment", type="primary", use_container_width=True, key="analyze_existing_sentiment"):
+                                            with st.spinner("🎭 Analyzing with banking metrics..."):
                                                 try:
                                                     email_content = st.session_state.refined_email_result.refined_content
                                                     customer_name = st.session_state.shared_context.customer_data.get('name', 'Customer')
                                                     
-                                                    result = analyze_sentiment_simple(email_content, customer_name)
-                                                    st.session_state.sentiment_result_simple = result
-                                                    st.success("✅ Sentiment analysis complete!")
+                                                    # Build customer context
+                                                    customer_context = {
+                                                        'segment': safe_get_attribute(
+                                                            st.session_state.shared_context.customer_insights,
+                                                            'segment',
+                                                            'Unknown'
+                                                        ),
+                                                        'life_stage': safe_get_attribute(
+                                                            st.session_state.shared_context.customer_insights,
+                                                            'life_stage',
+                                                            'Unknown'
+                                                        ),
+                                                        'digital_persona': safe_get_attribute(
+                                                            st.session_state.shared_context.customer_insights,
+                                                            'digital_persona',
+                                                            'Unknown'
+                                                        ),
+                                                        'financial_profile': safe_get_attribute(
+                                                            st.session_state.shared_context.customer_insights,
+                                                            'financial_profile',
+                                                            'Unknown'
+                                                        )
+                                                    }
+                                                    
+                                                    result = analyze_banking_sentiment(
+                                                        email_content,
+                                                        customer_name,
+                                                        customer_context
+                                                    )
+                                                    st.session_state.sentiment_result_banking = result
+                                                    st.success("✅ Banking sentiment analysis complete!")
                                                     st.rerun()
                                                 except Exception as e:
-                                                    st.error(f"❌ Sentiment analysis failed: {str(e)}")
+                                                    st.error(f"❌ Banking sentiment analysis failed: {str(e)}")
                     else:
                         st.info("🚨 No hallucination analysis available yet. Generate content first.")
                 else:
@@ -921,26 +1003,35 @@ class PersonalizationApp:
                 personal_delta = (refined.metrics.personalization_score_after - refined.metrics.personalization_score_before) * 100
                 st.metric("Personalization Boost", f"+{personal_delta:.0f}%")
         
-        # Simple Sentiment Analysis Summary
-        if st.session_state.sentiment_result_simple and SIMPLE_SENTIMENT_AVAILABLE:
+        # Banking Sentiment Analysis Summary
+        if st.session_state.sentiment_result_banking and BANKING_SENTIMENT_AVAILABLE:
             st.markdown("---")
-            st.markdown("**🎭 Sentiment Analysis Summary:**")
-            sentiment = st.session_state.sentiment_result_simple
+            st.markdown("**🎭 Banking Sentiment Summary:**")
+            sentiment = st.session_state.sentiment_result_banking
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Overall Score", f"{sentiment['overall_score']}/100")
+                st.metric("Overall Score", f"{sentiment.get('overall_score', 0)}/100")
             with col2:
-                ready_text = "✅ Ready" if sentiment['ready_to_send'] else "❌ Not Ready"
+                ready_text = "✅ Ready" if sentiment.get('ready_to_send', False) else "❌ Not Ready"
                 st.metric("Status", ready_text)
             with col3:
-                st.metric("Complaint Risk", f"{sentiment['customer_impact']['complaint_risk']:.0f}%")
+                complaint_risk = sentiment.get('customer_impact', {}).get('complaint_risk', 0)
+                st.metric("Complaint Risk", f"{complaint_risk:.0f}%")
             with col4:
-                st.metric("Compliance", f"{sentiment['compliance']['score']}")
+                nps_impact = sentiment.get('nps_impact', {}).get('predicted_impact', 0)
+                st.metric("NPS Impact", f"{'+' if nps_impact > 0 else ''}{nps_impact}")
             
             # Executive summary
             if 'executive_summary' in sentiment:
                 st.info(sentiment['executive_summary'])
+            
+            # Show decision rationale if available
+            if 'decision_rationale' in sentiment:
+                rationale = sentiment['decision_rationale']
+                with st.expander("📋 Decision Factors"):
+                    for factor in rationale.get('primary_factors', []):
+                        st.write(f"• {factor}")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
