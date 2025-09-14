@@ -79,7 +79,7 @@ class SmartVoiceGenerator:
     # ============== VOICE CONFIGURATION WITH AUDIO ==============
     VOICE_CONFIG = {
         'audio': {
-            'output_dir': 'output/voice_notes',
+            'output_dir': 'data/output/voice_notes',
             'format': 'mp3',
             'sample_rate': 24000,
             'quality': 'high'
@@ -88,22 +88,23 @@ class SmartVoiceGenerator:
             'openai': {
                 'model': 'tts-1-hd',  # Higher quality model
                 'voices': {
-                    'English': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Spanish': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'French': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'German': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Italian': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Portuguese': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Polish': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Dutch': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Russian': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Japanese': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Chinese': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Korean': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Arabic': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Hindi': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'},
-                    'Turkish': {'DIGITAL': 'nova', 'ASSISTED': 'alloy', 'TRADITIONAL': 'onyx'}
+                    'English': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Spanish': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'French': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'German': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Italian': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Portuguese': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Polish': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Dutch': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Russian': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Japanese': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Chinese': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Korean': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Arabic': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Hindi': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'},
+                    'Turkish': {'DIGITAL': 'nova', 'ASSISTED': 'nova', 'TRADITIONAL': 'shimmer'}
                 },
+                
                 'speed_settings': {
                     'slow': 0.85,
                     'normal': 1.0,
