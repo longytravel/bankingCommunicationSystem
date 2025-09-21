@@ -66,7 +66,7 @@ class SMSDisplay(BaseChannelDisplay):
             self._display_sms_metrics(result)
             
             # SMS preview
-            st.markdown("**📱 SMS Preview:**")
+            st.markdown("**SMS Preview:**")
             self._display_sms_preview(result)
             
             # Additional details
@@ -121,14 +121,14 @@ class SMSDisplay(BaseChannelDisplay):
         with col1:
             critical_points = getattr(result, 'critical_points_included', [])
             if critical_points:
-                st.markdown("**✅ Critical Points Included:**")
+                st.markdown("**Critical Points Included:**")
                 for point in critical_points:
                     st.write(f"• {point}")
         
         with col2:
             abbreviations = getattr(result, 'abbreviations_used', {})
             if abbreviations:
-                st.markdown("**📝 Abbreviations Used:**")
+                st.markdown("**Abbreviations Used:**")
                 for full, abbrev in abbreviations.items():
                     st.write(f"• {full} → {abbrev}")
         

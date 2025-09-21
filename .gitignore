@@ -41,7 +41,6 @@ data/cache/voice_notes/
 
 # Test outputs
 *.mp3
-*.json
 personalization_test_output.json
 test_*.py
 

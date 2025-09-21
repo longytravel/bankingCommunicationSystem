@@ -63,11 +63,11 @@ class EmailDisplay(BaseChannelDisplay):
             
             # Subject line
             subject_line = getattr(result, 'subject_line', 'No subject')
-            st.markdown("**📝 Subject Line:**")
+            st.markdown("**Subject Line:**")
             st.markdown(f'<div class="email-subject-line">{subject_line}</div>', unsafe_allow_html=True)
             
             # Email content
-            st.markdown("**✉️ Email Content:**")
+            st.markdown("**Email Content:**")
             self._display_email_content(result)
             
             # Personalization achieved

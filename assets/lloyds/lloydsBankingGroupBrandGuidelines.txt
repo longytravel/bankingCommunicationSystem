@@ -1,0 +1,82 @@
+Design Brief: Lloyds New Branding (Generic Implementation)
+
+Purpose / Goal
+Ensure all design work captures Lloyds’ updated brand identity: fresh, modern, digital-first, recognisably Lloyds, grounded in British culture, evocative of trust, movement, and authenticity.
+
+Key Brand Pillars
+Pillar	Description
+Core Identity	The classic Lloyds Green + the black horse motif remain central. The logotype now often uses just “Lloyds” rather than “Lloyds Bank.” The horse’s direction is aligned (everything faces forward) to signal progress. 
+Lloyds Bank
++2
+Creative Review
++2
+
+Custom Typography	A customised version of GT Ultra (in collaboration with Grilli Type), with several weights and flexible/shaping options. Type feels modern but with British heritage cues. 
+Wolff Olins
++2
+Creative Review
++2
+
+Colour Palette	Reinvigorated version of classic Lloyds green. There is a complimentary accent/secondary palette. Colours evoke British landscape, natural tones, freshness. 
+Creative Review
++1
+
+Imagery / Photography	Real people in natural contexts; down-to-earth photography; authentic moments; not overly staged. Lighting should feel natural; scenes that hold mirror to modern British life. 
+Creative Review
++1
+
+Motion & Iconography	Motion patterns derived from horse movement (canter, gallop, flick). Icons & illustrations that feel clean, expressive, simple, not overly decorative. 
+Creative Review
++1
+
+Tone of Voice	Grounded, warm, modern British. Trustworthy but approachable. Slight touches of humour where appropriate. Communication should feel human, not corporate-robot. 
+Creative Review
++1
+Design Guidelines
+
+These are rules or recommendations to keep designs consistent across contexts.
+
+Logo usage:
+‒ Use updated “Lloyds” logo / mark where appropriate; in some formal / legal usage “Lloyds Bank” may still appear. 
+Lloyds Bank
++1
+
+‒ Respect logo space (clearance), proportions, direction. No distortions.
+
+Colour usage / hierarchy:
+‒ Primary brand green is dominant in key brand touchpoints (headers, large CTAs, etc.).
+‒ Accent colours used sparingly to support hierarchy: call-to-actions, highlights, buttons, UI elements, links.
+‒ Backgrounds should allow good contrast for text or overlays.
+
+Typography hierarchy:
+‒ Headings (H1, H2, etc.) should use heavier weights or expressive versions of the custom typeface to create impact.
+‒ Body text should be very legible, with appropriate line spacing.
+‒ Subheadings / captions: use lighter weights or smaller scale while maintaining consistency.
+
+Imagery style:
+‒ Photos: natural lighting, real people, relatable environments. Avoid overly posed, overly “perfect” stock shots.
+‒ Overlays / image treatments: if text is over images, ensure readability (contrast, shadow, overlay).
+‒ Illustration style: simple, clean, expressive, matching colour palette; used to clarify or support messaging rather than distract.
+
+Motion / Interaction:
+‒ Subtle animations / transitions inspired by horse movement motifs. Could be hover states, loading transitions, micro-interactions.
+‒ Motion should feel smooth, considered, not flashy for its own sake.
+
+Consistency:
+‒ All elements (colour, typography, imagery, icons, motion) must align.
+‒ Create component library / style guide to ensure reuse of buttons, cards, UI controls, etc.
+
+Accessibility:
+‒ Colour contrast sufficient for readability.
+‒ Fonts readable at smaller sizes.
+‒ Responsive behaviour: designs should scale / adapt across devices.
+
+Brand Position & Promise
+
+Positioning Statement: Lloyds moves everyone forward. 
+Wolff Olins
++1
+
+Emotional Feel / Mood: Hopeful, progressive, modern but rooted in heritage.
+
+Audience & Context Sensitivity: Designs must appeal to both business & consumer users; formal enough to convey trust, informal enough not to feel distant.

@@ -7,6 +7,7 @@ UPDATED: Now includes EMAIL REFINEMENT functionality and BANKING SENTIMENT ANALY
 
 import streamlit as st
 import pandas as pd
+import html
 from pathlib import Path
 import sys
 import hashlib
@@ -15,6 +16,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import traceback
+from contextlib import contextmanager
 
 # Load environment
 load_dotenv()
@@ -27,31 +29,38 @@ sys.path.insert(0, str(project_root))
 from src.app.displays import CHANNEL_DISPLAYS, get_display_for_channel
 from src.app.utils.safe_access import safe_get_attribute
 
+from src.app.styles import (
+    apply_lloyds_branding,
+    asset_to_data_uri,
+    get_brand_asset,
+    render_brand_header,
+)
+
 # Import refinement modules
 try:
     from src.core.email_refiner import EmailRefiner, refine_email
     from src.app.displays.refinement_display import RefinementDisplay
     REFINEMENT_AVAILABLE = True
-    print("✅ Email refinement module loaded")
+    print("Email refinement module loaded")
 except ImportError as e:
     REFINEMENT_AVAILABLE = False
-    print(f"⚠️ Email refinement not available: {e}")
+    print(f"Email refinement not available: {e}")
 
 # Import the PROPER BANKING sentiment analysis modules
 try:
     from src.core.sentiment_analyzer_banking import analyze_banking_sentiment
     from src.app.displays.sentiment_display_banking import display_banking_sentiment
     BANKING_SENTIMENT_AVAILABLE = True
-    print("✅ Banking sentiment analysis loaded")
+    print("Banking sentiment analysis loaded")
 except ImportError as e:
     BANKING_SENTIMENT_AVAILABLE = False
-    print(f"⚠️ Banking sentiment not available: {e}")
+    print(f"Banking sentiment not available: {e}")
     # Fallback to simple if banking not available
     try:
         from src.core.sentiment_analyzer_simple import analyze_sentiment_simple
         from src.app.displays.sentiment_display_simple import display_simple_sentiment
         SIMPLE_SENTIMENT_AVAILABLE = True
-        print("⚠️ Using simple sentiment as fallback")
+        print("Using simple sentiment as fallback")
     except:
         SIMPLE_SENTIMENT_AVAILABLE = False
 
@@ -64,10 +73,10 @@ try:
     from src.core.content_validator import ContentValidator, PointImportance
     from src.core.document_classifier import AIDocumentClassifier
     CORE_MODULES_AVAILABLE = True
-    print("✅ Core modules loaded")
+    print("Core modules loaded")
 except Exception as e:
     CORE_MODULES_AVAILABLE = False
-    print(f"❌ Core modules failed: {e}")
+    print(f"Core modules failed: {e}")
     st.error("Core modules not available - check installation")
     st.stop()
 
@@ -75,65 +84,73 @@ except Exception as e:
 try:
     from src.core.hallucination_detector import HallucinationDetector
     HALLUCINATION_AVAILABLE = True
-    print("✅ Hallucination detector loaded")
+    print("Hallucination detector loaded")
 except ImportError:
     HALLUCINATION_AVAILABLE = False
-    print("⚠️ Hallucination detector not available")
+    print("Hallucination detector not available")
 
 # Try to import voice generator (use the enhanced version with audio file support)
 try:
     from src.core.voice_note_generator_enhanced import SmartVoiceGenerator
     VOICE_AVAILABLE = True
-    print("✅ Voice module loaded (enhanced version with audio support)")
+    print("Voice module loaded (enhanced version with audio support)")
 except ImportError:
     try:
         # Fallback to basic voice generator if enhanced not available
         from src.core.voice_note_generator import SmartVoiceGenerator
         VOICE_AVAILABLE = True
-        print("✅ Voice module loaded (basic version)")
+        print("Voice module loaded (basic version)")
     except ImportError:
         VOICE_AVAILABLE = False
-        print("⚠️ Voice module not available")
+        print("Voice module not available")
 
 # Page configuration
+brand_logo = get_brand_asset('mainLogo.png') or get_brand_asset('mainLogoWhiteBackgroup.png')
+page_icon = str(brand_logo) if brand_logo else None
+
 st.set_page_config(
     page_title="Lloyds AI Engine - Modular",
-    page_icon="🧠",
+    page_icon=page_icon,
     layout="wide"
 )
 
-# Apply Lloyds styling
-st.markdown("""
-<style>
-    .main {padding-top: 1rem;}
-    .stButton>button {
-        background-color: #006A4D;
-        color: white;
-    }
-    .shared-brain-banner {
-        background: linear-gradient(90deg, #006A4D, #00A651);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-    .intelligence-card {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border: 2px solid #006A4D;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-    .personalization-insights {
-        background: linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%);
-        border: 2px solid #ff9800;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+apply_lloyds_branding()
+
+
+@contextmanager
+def lbg_card(title: str, subtitle: str = "", *, badge: Optional[str] = None):
+    """Render a Lloyds-styled card container."""
+    wrapper = st.container()
+
+    badge_html = f"<div class='lbg-card-badge'>{html.escape(badge)}</div>" if badge else ""
+    subtitle_html = f"<p class='lbg-card-subtitle'>{html.escape(subtitle)}</p>" if subtitle else ""
+
+    header_segments = [
+        "<div class='lbg-surface-card'>",
+        "  <div class='lbg-card-header'>",
+        "    <div>",
+    ]
+
+    if badge_html:
+        header_segments.append(f"      {badge_html}")
+
+    header_segments.append(f"      <h3 class='lbg-card-title'>{html.escape(title)}</h3>")
+
+    if subtitle_html:
+        header_segments.append(f"      {subtitle_html}")
+
+    header_segments.extend([
+        "    </div>",
+        "  </div>",
+        "  <div class='lbg-card-body'>",
+    ])
+
+    wrapper.markdown('\n'.join(header_segments), unsafe_allow_html=True)
+    body = wrapper.container()
+    try:
+        yield body
+    finally:
+        body.markdown("</div></div>", unsafe_allow_html=True)
 
 class PersonalizationApp:
     """Main application class - cleaner organization"""
@@ -193,132 +210,128 @@ class PersonalizationApp:
             # Add voice if available
             if VOICE_AVAILABLE:
                 generators['voice'] = SmartVoiceGenerator()
-                print("✅ Voice generator added to generators")
+                print("Voice generator added to generators")
             
             st.session_state.generators = generators
-    
+
     def display_header(self):
         """Display application header"""
-        channels = "Email • SMS • Letter"
+        channels = ['Email', 'SMS', 'Letter']
         if VOICE_AVAILABLE:
-            channels += " • Voice"
+            channels.append('Voice')
         if HALLUCINATION_AVAILABLE:
-            channels += " • Hallucination Detection"
+            channels.append('Hallucination Detection')
         if REFINEMENT_AVAILABLE:
-            channels += " • Email Refinement"
+            channels.append('Email Refinement')
         if BANKING_SENTIMENT_AVAILABLE:
-            channels += " • Banking Sentiment Analysis"
-        
-        st.markdown(f'''
-        <div class="shared-brain-banner">
-            <h1>🧠 Lloyds AI Personalization Engine</h1>
-            <h3>Modular Architecture • Powered by Shared Brain Intelligence</h3>
-            <p>{channels} • Extensible for new channels</p>
-        </div>
-        ''', unsafe_allow_html=True)
+            channels.append('Banking Sentiment Analysis')
+        elif SIMPLE_SENTIMENT_AVAILABLE:
+            channels.append('Sentiment Insights')
+
+        subtitle = ' | '.join(channels) + ' | Powered by Shared Brain Intelligence'
+        badge = 'Unified Communications Suite'
+        # Use transparentLogo.jpg for green banner
+        logo_data = asset_to_data_uri('transparentLogo.jpg')
+
+        render_brand_header(
+            title='Lloyds AI Personalisation Engine',
+            subtitle=subtitle,
+            badge=badge,
+            logo=logo_data,
+        )
+
     
     def display_sidebar(self):
         """Display sidebar with system status"""
         with st.sidebar:
-            st.markdown("### 🧠 System Status")
-            
-            # Check each module
+            st.markdown("<div class='lbg-section-title'>System Status</div>", unsafe_allow_html=True)
+
             modules_status = {
                 'Shared Brain': st.session_state.shared_brain is not None,
                 'Email Generator': 'email' in st.session_state.generators,
                 'SMS Generator': 'sms' in st.session_state.generators,
-                'Letter Generator': 'letter' in st.session_state.generators
+                'Letter Generator': 'letter' in st.session_state.generators,
             }
-            
-            # Add voice if available
+
             if VOICE_AVAILABLE:
                 modules_status['Voice Generator'] = 'voice' in st.session_state.generators
-            
-            # Add hallucination detector status
             if HALLUCINATION_AVAILABLE:
                 modules_status['Hallucination Detector'] = True
-            
-            # Add refinement status
             if REFINEMENT_AVAILABLE:
                 modules_status['Email Refiner'] = True
-            
-            # Add sentiment analysis status
             if BANKING_SENTIMENT_AVAILABLE:
                 modules_status['Banking Sentiment'] = True
             elif SIMPLE_SENTIMENT_AVAILABLE:
                 modules_status['Sentiment Analyzer'] = True
-            
+
+            status_rows = []
             for module, status in modules_status.items():
-                icon = "✅" if status else "❌"
-                st.write(f"**{module}:** {icon}")
-            
-            st.markdown("---")
-            
-            # Display modules
-            st.markdown("### 📦 Display Modules")
+                tag_class = 'lbg-tag' if status else 'lbg-tag lbg-badge-critical'
+                tag_label = 'Active' if status else 'Attention'
+                status_rows.append(
+                    f"<div class='lbg-sidebar-status'><span>{html.escape(module)}</span><span class='{tag_class}'>{tag_label}</span></div>"
+                )
+
+            if status_rows:
+                st.markdown("<div class='lbg-card'>" + ''.join(status_rows) + "</div>", unsafe_allow_html=True)
+
+            st.markdown("<div class='lbg-section-title'>Modules</div>", unsafe_allow_html=True)
+            module_rows = []
             for channel in CHANNEL_DISPLAYS.keys():
                 display = get_display_for_channel(channel)
                 if display:
-                    st.write(f"{display.icon} {channel.title()}: ✅")
-            
-            # Current analysis info
+                    module_rows.append(
+                        f"<div class='lbg-sidebar-status'><span>{html.escape(channel.title())}</span><span class='lbg-tag'>Ready</span></div>"
+                    )
+
+            if module_rows:
+                st.markdown("<div class='lbg-card'>" + ''.join(module_rows) + "</div>", unsafe_allow_html=True)
+
             if st.session_state.shared_context:
-                st.markdown("---")
-                st.markdown("### 📊 Current Analysis")
-                customer_name = safe_get_attribute(
-                    st.session_state.shared_context, 
-                    'customer_data.name', 
-                    'Unknown'
-                )
-                segment = safe_get_attribute(
-                    st.session_state.shared_context,
-                    'customer_insights.segment',
-                    'Unknown'
-                )
-                confidence = safe_get_attribute(
-                    st.session_state.shared_context,
-                    'analysis_confidence',
-                    0
-                )
-                
-                st.write(f"**Customer:** {customer_name}")
-                st.write(f"**Segment:** {segment}")
-                st.write(f"**Quality:** {confidence:.0%}")
-                
+                st.markdown("<div class='lbg-section-title'>Current Analysis</div>", unsafe_allow_html=True)
+                customer_name = safe_get_attribute(st.session_state.shared_context, 'customer_data.name', 'Unknown')
+                segment = safe_get_attribute(st.session_state.shared_context, 'customer_insights.segment', 'Unknown')
+                confidence = safe_get_attribute(st.session_state.shared_context, 'analysis_confidence', 0)
                 enabled_channels = safe_get_attribute(
                     st.session_state.shared_context,
                     'channel_decisions.enabled_channels',
-                    {}
+                    {},
                 )
-                enabled = [ch for ch, en in enabled_channels.items() if en]
-                st.write(f"**Channels:** {', '.join(enabled) if enabled else 'None'}")
-                
-                # Show hallucination status if available
+                enabled = [ch.title() for ch, flag in enabled_channels.items() if flag]
+
+                sidebar_pairs = [
+                    ('Customer', customer_name),
+                    ('Segment', segment),
+                    ('Quality', f"{confidence:.0%}"),
+                    ('Channels', ', '.join(enabled) if enabled else 'None'),
+                ]
+
                 if st.session_state.hallucination_result:
-                    risk_score = safe_get_attribute(
-                        st.session_state.hallucination_result,
-                        'risk_score',
-                        0
+                    report = st.session_state.hallucination_result
+                    sidebar_pairs.append(
+                        (
+                            'Hallucination Risk',
+                            f"{report.total_hallucinations} findings | {report.risk_score:.0%} risk",
+                        )
                     )
-                    total_findings = safe_get_attribute(
-                        st.session_state.hallucination_result,
-                        'total_hallucinations',
-                        0
-                    )
-                    st.write(f"**🚨 Hallucinations:** {total_findings}")
-                    st.write(f"**Risk Score:** {risk_score:.0%}")
-                
-                # Show refinement status if available
+
                 if st.session_state.refined_email_result:
-                    st.write(f"**✨ Email Refined:** Yes")
-                
-                # Show sentiment status if available (BANKING VERSION)
+                    sidebar_pairs.append(('Email Refinement', 'Completed'))
+
                 if st.session_state.sentiment_result_banking:
-                    sentiment = st.session_state.sentiment_result_banking.get('overall_score', 0)
-                    ready = st.session_state.sentiment_result_banking.get('ready_to_send', False)
-                    st.write(f"**🎭 Sentiment:** {sentiment}/100")
-                    st.write(f"**Ready:** {'✅' if ready else '❌'}")
-    
+                    sentiment_ready = 'Ready' if st.session_state.sentiment_result_banking.get('ready_to_send', False) else 'Review'
+                    sidebar_pairs.append(
+                        ('Banking Sentiment', f"{st.session_state.sentiment_result_banking.get('overall_score', 0)}/100 | {sentiment_ready}")
+                    )
+
+                analysis_rows = []
+                for label, value in sidebar_pairs:
+                    analysis_rows.append(
+                        f"<div class='lbg-sidebar-status'><span>{html.escape(label)}</span><span>{html.escape(str(value))}</span></div>"
+                    )
+
+                st.markdown("<div class='lbg-card'>" + ''.join(analysis_rows) + "</div>", unsafe_allow_html=True)
+
     def handle_letter_upload(self) -> Optional[str]:
         """Handle letter file upload"""
         letter_file = st.file_uploader(
@@ -357,7 +370,7 @@ class PersonalizationApp:
     def analyze_document(self, content: str):
         """Analyze document with AI"""
         if not st.session_state.doc_analyzed:
-            with st.spinner("🔍 Analyzing document with AI..."):
+            with st.spinner("Analysing document with AI..."):
                 classifier = AIDocumentClassifier()
                 validator = ContentValidator()
                 
@@ -368,7 +381,7 @@ class PersonalizationApp:
     def display_document_analysis(self):
         """Display complete document analysis with all insights"""
         if st.session_state.doc_classification:
-            with st.expander("📄 Document Intelligence", expanded=True):
+            with st.expander("Document Intelligence", expanded=True):
                 cls = st.session_state.doc_classification
                 
                 # Classification metrics - using regular text instead of metrics for better display
@@ -385,10 +398,10 @@ class PersonalizationApp:
                     st.write(cls.urgency_level)
                 with col4:
                     st.markdown("**Action**")
-                    st.write("✅ Yes" if cls.customer_action_required else "❌ No")
+                    st.write("Yes" if cls.customer_action_required else "No")
                 
                 # AI Reasoning
-                with st.expander("🤖 AI Analysis", expanded=False):
+                with st.expander("AI Analysis", expanded=False):
                     st.markdown(f"**Reasoning:** {cls.reasoning}")
                     
                     if cls.key_indicators:
@@ -401,50 +414,53 @@ class PersonalizationApp:
                         insights = cls.ai_insights
                         st.markdown("**AI Insights:**")
                         if 'primary_purpose' in insights:
-                            st.write(f"• **Purpose:** {insights['primary_purpose']}")
+                            st.write(f"**Purpose:** {insights['primary_purpose']}")
                         if 'key_message' in insights:
-                            st.write(f"• **Key Message:** {insights['key_message']}")
+                            st.write(f"**Key Message:** {insights['key_message']}")
                         if 'target_audience' in insights:
-                            st.write(f"• **Target Audience:** {insights['target_audience']}")
+                            st.write(f"**Target Audience:** {insights['target_audience']}")
                         if 'emotional_impact' in insights:
-                            st.write(f"• **Emotional Impact:** {insights['emotional_impact']}")
+                            st.write(f"**Emotional Impact:** {insights['emotional_impact']}")
         
         # Display Critical Information to Preserve
         if st.session_state.doc_key_points:
-            with st.expander("🔒 Critical Information to Preserve", expanded=True):
+            with st.expander("Critical Information to Preserve", expanded=True):
                 # Group points by importance
                 critical = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CRITICAL]
                 important = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.IMPORTANT]
                 contextual = [p for p in st.session_state.doc_key_points if p.importance == PointImportance.CONTEXTUAL]
                 
                 if critical:
-                    st.markdown("**🔴 Critical (Must Include):**")
+                    st.markdown("**Critical (Must Include):**")
                     for point in critical[:5]:
-                        st.write(f"• {point.content}")
+                        st.write(f"- {point.content}")
                         if point.explanation:
-                            st.caption(f"  ↳ {point.explanation}")
+                            st.caption(point.explanation)
                 
                 if important:
-                    st.markdown("**🟡 Important:**")
+                    st.markdown("**Important:**")
                     for point in important[:3]:
-                        st.write(f"• {point.content}")
+                        st.write(f"- {point.content}")
                         if point.explanation:
-                            st.caption(f"  ↳ {point.explanation}")
+                            st.caption(point.explanation)
                 
                 if contextual:
-                    st.markdown("**🔵 Contextual:**")
+                    st.markdown("**Contextual:**")
                     for point in contextual[:2]:
-                        st.write(f"• {point.content}")
+                        st.write(f"- {point.content}")
                 
                 # Summary metrics
                 total_points = len(critical) + len(important) + len(contextual)
-                st.caption(f"📊 Total: {len(critical)} critical, {len(important)} important, {len(contextual)} contextual points identified")
+                st.caption(f"Total: {len(critical)} critical, {len(important)} important, {len(contextual)} contextual points identified")
         
-        # Letter preview with normal text size
+        # Letter preview with scrollable full content
         if st.session_state.letter_content:
-            with st.expander("📄 Letter Preview", expanded=False):
-                preview_text = st.session_state.letter_content[:500] + "..." if len(st.session_state.letter_content) > 500 else st.session_state.letter_content
-                st.text_area("Original Letter", preview_text, height=150, disabled=True)
+            with st.expander("📄 Full Letter Preview", expanded=False):
+                # Create a scrollable container with full letter content using the styled class
+                st.markdown(
+                    f'<div class="letter-preview-container">{html.escape(st.session_state.letter_content)}</div>',
+                    unsafe_allow_html=True
+                )
     
     def handle_customer_selection(self, customers_df: pd.DataFrame) -> Optional[Dict]:
         """Handle customer selection from dataframe with profile preview"""
@@ -460,13 +476,13 @@ class PersonalizationApp:
             selected_customer = customers_df.iloc[idx].to_dict()
             
             # Display customer profile
-            with st.expander("👤 Customer Profile", expanded=False):
+            with st.expander("Customer Profile", expanded=False):
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.write(f"**Name:** {selected_customer.get('name', 'N/A')}")
                     st.write(f"**Age:** {selected_customer.get('age', 'N/A')}")
                     st.write(f"**Language:** {selected_customer.get('preferred_language', 'English')}")
-                    st.write(f"**Balance:** £{selected_customer.get('account_balance', 0):,}")
+                    st.write(f"**Balance:** {selected_customer.get('account_balance', 0):,}")
                 with col_b:
                     st.write(f"**Digital Logins:** {selected_customer.get('digital_logins_per_month', 0)}/month")
                     st.write(f"**App Usage:** {selected_customer.get('mobile_app_usage', 'Unknown')}")
@@ -480,7 +496,7 @@ class PersonalizationApp:
     def process_customer(self, letter_content: str, customer: Dict):
         """Process customer through all channels and run hallucination detection"""
         try:
-            with st.spinner(f"🧠 Shared Brain analyzing {customer['name']}..."):
+            with st.spinner(f"Shared Brain analysing {customer['name']}..."):
                 # Run SharedBrain analysis
                 shared_context = st.session_state.shared_brain.analyze_everything(
                     letter_content=letter_content,
@@ -519,7 +535,7 @@ class PersonalizationApp:
                 
                 # RUN HALLUCINATION DETECTION ON ALL GENERATED CONTENT
                 if HALLUCINATION_AVAILABLE and results:
-                    with st.spinner("🚨 Running hallucination detection..."):
+                    with st.spinner("Running hallucination detection..."):
                         # Prepare content for hallucination detection
                         generated_content = {}
                         for channel, result in results.items():
@@ -540,25 +556,25 @@ class PersonalizationApp:
                             st.session_state.hallucination_result = hallucination_report
                             
                             # Log summary
-                            print(f"🚨 Hallucination Detection Complete:")
-                            print(f"   Total Findings: {hallucination_report.total_hallucinations}")
-                            print(f"   Risk Score: {hallucination_report.risk_score:.0%}")
-                            print(f"   Channels Analyzed: {', '.join(hallucination_report.channels_analyzed)}")
+                            print(f"Hallucination Detection Complete:")
+                            print(f"Total Findings: {hallucination_report.total_hallucinations}")
+                            print(f"Risk Score: {hallucination_report.risk_score:.0%}")
+                            print(f"Channels Analyzed: {', '.join(hallucination_report.channels_analyzed)}")
                 
                 processing_time = shared_context.processing_time
-                st.success(f"✅ Complete AI analysis finished in {processing_time:.1f}s!")
+                st.success(f"Complete AI analysis finished in {processing_time:.1f}s!")
                 
                 # Show API calls saved if any
                 if hasattr(shared_context, 'api_calls_saved') and shared_context.api_calls_saved > 0:
-                    st.info(f"💰 Saved {shared_context.api_calls_saved} API calls by reusing existing analysis")
+                    st.info(f"Saved {shared_context.api_calls_saved} API calls by reusing existing analysis")
                 
                 # Show hallucination summary if detected
                 if HALLUCINATION_AVAILABLE and st.session_state.hallucination_result:
                     report = st.session_state.hallucination_result
                     if report.total_hallucinations > 0:
-                        st.warning(f"🚨 Detected {report.total_hallucinations} potential hallucination(s) - Risk: {report.risk_score:.0%}")
+                        st.warning(f"Detected {report.total_hallucinations} potential hallucination(s) - Risk: {report.risk_score:.0%}")
                     else:
-                        st.success("✅ No hallucinations detected in generated content")
+                        st.success("No hallucinations detected in generated content")
                 
                 st.rerun()
                 
@@ -569,15 +585,15 @@ class PersonalizationApp:
     def display_results(self):
         """Display all results using modular displays"""
         if not st.session_state.shared_context:
-            st.info("👈 Upload a letter and select a customer to begin")
+            st.info("Upload a letter and select a customer to begin")
             return
         
         # Create tabs for channels
         available_channels = ['intelligence'] + list(CHANNEL_DISPLAYS.keys()) + ['analysis']
-        tab_names = ['🧠 Intelligence'] + [
+        tab_names = [' Intelligence'] + [
             f"{CHANNEL_DISPLAYS[ch].icon} {ch.title()}" 
             for ch in CHANNEL_DISPLAYS.keys()
-        ] + ['📊 Analysis']
+        ] + [' Analysis']
         
         tabs = st.tabs(tab_names)
         
@@ -627,7 +643,7 @@ class PersonalizationApp:
                                     st.session_state.get('hallucination_result') and
                                     st.session_state.get('shared_context')):
                                     
-                                    with st.spinner("🔧 Refining email... Removing hallucinations and enhancing personalization..."):
+                                    with st.spinner("Refining email... Removing hallucinations and enhancing personalisation..."):
                                         # Perform refinement
                                         refined_result = refine_email(
                                             st.session_state.email_result,
@@ -650,7 +666,7 @@ class PersonalizationApp:
                                     # BANKING SENTIMENT ANALYSIS SECTION
                                     if BANKING_SENTIMENT_AVAILABLE:
                                         st.markdown("---")
-                                        st.markdown("### 🎭 Banking Sentiment Analysis")
+                                        st.markdown("###  Banking Sentiment Analysis")
                                         
                                         # Check if we already have results
                                         if st.session_state.get('sentiment_result_banking'):
@@ -661,15 +677,15 @@ class PersonalizationApp:
                                             )
                                             
                                             # Option to re-analyze
-                                            if st.button("🔄 Re-analyze Sentiment", key="reanalyze_sentiment_banking"):
+                                            if st.button("Re-analyse Sentiment", key="reanalyze_sentiment_banking"):
                                                 st.session_state.sentiment_result_banking = None
                                                 st.rerun()
                                         else:
                                             # No analysis yet - show button to trigger
-                                            st.info("📊 Analyze the emotional tone, compliance, NPS impact, and predicted customer response.")
+                                            st.info("Analyse the emotional tone, compliance, NPS impact, and predicted customer response.")
                                             
-                                            if st.button("🎭 Analyze Banking Sentiment", type="primary", use_container_width=True, key="analyze_sentiment_button"):
-                                                with st.spinner("🎭 Analyzing with banking-specific metrics..."):
+                                            if st.button("Analyse Banking Sentiment", type="primary", use_container_width=True, key="analyze_sentiment_button"):
+                                                with st.spinner("Analysing with banking-specific metrics..."):
                                                     try:
                                                         # Get what we need
                                                         email_content = refined_result.refined_content
@@ -709,11 +725,11 @@ class PersonalizationApp:
                                                         # Store in session state
                                                         st.session_state.sentiment_result_banking = result
                                                         
-                                                        st.success("✅ Banking sentiment analysis complete!")
+                                                        st.success("Banking sentiment analysis complete")
                                                         st.rerun()
                                                         
                                                     except Exception as e:
-                                                        st.error(f"❌ Analysis failed: {str(e)}")
+                                                        st.error(f"Analysis failed: {str(e)}")
                                                         st.info("Check your Claude API key in .env file")
                                                         import traceback
                                                         st.error(traceback.format_exc())
@@ -721,7 +737,7 @@ class PersonalizationApp:
                                     # Fallback to simple sentiment if banking not available
                                     elif SIMPLE_SENTIMENT_AVAILABLE:
                                         st.markdown("---")
-                                        st.markdown("### 🎭 Sentiment Analysis (Simple)")
+                                        st.markdown("###  Sentiment Analysis (Simple)")
                                         st.warning("Banking sentiment analyzer not available - using simple version")
                                         # Simple sentiment code here...
                                 
@@ -732,7 +748,7 @@ class PersonalizationApp:
                             # Display previous refinement if exists
                             elif st.session_state.get('refined_email_result') and REFINEMENT_AVAILABLE:
                                 st.markdown("---")
-                                st.markdown("### 📝 Previous Refinement")
+                                st.markdown("###  Previous Refinement")
                                 refinement_display = RefinementDisplay()
                                 refinement_display.display_refinement_in_hallucination_tab(
                                     st.session_state.refined_email_result,
@@ -742,7 +758,7 @@ class PersonalizationApp:
                                 # BANKING SENTIMENT ANALYSIS SECTION (for existing refinement)
                                 if BANKING_SENTIMENT_AVAILABLE:
                                     st.markdown("---")
-                                    st.markdown("### 🎭 Banking Sentiment Analysis")
+                                    st.markdown("###  Banking Sentiment Analysis")
                                     
                                     if st.session_state.get('sentiment_result_banking'):
                                         # Display existing sentiment analysis
@@ -752,15 +768,15 @@ class PersonalizationApp:
                                         )
                                         
                                         # Option to re-analyze
-                                        if st.button("🔄 Re-analyze Sentiment", key="reanalyze_existing_sentiment"):
+                                        if st.button("Re-analyse Sentiment", key="reanalyze_existing_sentiment"):
                                             st.session_state.sentiment_result_banking = None
                                             st.rerun()
                                     else:
                                         # Show button to trigger sentiment analysis
-                                        st.info("📊 Analyze the emotional tone, compliance, and NPS impact of your refined email.")
+                                        st.info("Analyse the emotional tone, compliance, and NPS impact of your refined email.")
                                         
-                                        if st.button("🎭 Analyze Banking Sentiment", type="primary", use_container_width=True, key="analyze_existing_sentiment"):
-                                            with st.spinner("🎭 Analyzing with banking metrics..."):
+                                        if st.button("Analyse Banking Sentiment", type="primary", use_container_width=True, key="analyze_existing_sentiment"):
+                                            with st.spinner("Analysing with banking metrics..."):
                                                 try:
                                                     email_content = st.session_state.refined_email_result.refined_content
                                                     customer_name = st.session_state.shared_context.customer_data.get('name', 'Customer')
@@ -795,12 +811,12 @@ class PersonalizationApp:
                                                         customer_context
                                                     )
                                                     st.session_state.sentiment_result_banking = result
-                                                    st.success("✅ Banking sentiment analysis complete!")
+                                                    st.success("Banking sentiment analysis complete")
                                                     st.rerun()
                                                 except Exception as e:
-                                                    st.error(f"❌ Banking sentiment analysis failed: {str(e)}")
+                                                    st.error(f"Banking sentiment analysis failed: {str(e)}")
                     else:
-                        st.info("🚨 No hallucination analysis available yet. Generate content first.")
+                        st.info("No hallucination analysis available yet. Generate content first.")
                 else:
                     # Normal channel display
                     result = st.session_state.get(f"{channel_name}_result")
@@ -823,7 +839,7 @@ class PersonalizationApp:
                         display.create_download_button(result, customer_name)
                     else:
                         if channel_name == 'voice' and not VOICE_AVAILABLE:
-                            st.info("🎙️ Voice module not installed yet")
+                            st.info("Voice module not installed yet")
                         else:
                             st.info(f"{channel_name.title()} not generated - may be disabled by rules")
         
@@ -835,140 +851,98 @@ class PersonalizationApp:
         """Display complete SharedBrain intelligence with all insights"""
         if not st.session_state.shared_context:
             return
-        
+
         ctx = st.session_state.shared_context
         insights = ctx.customer_insights
         strategy = ctx.personalization_strategy
-        
-        st.markdown('<div class="intelligence-card">', unsafe_allow_html=True)
-        st.markdown("### 🧠 Shared Brain Intelligence")
-        
-        # Core metrics - using columns with regular text instead of st.metric for better control
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown("**Customer Segment**")
-            st.write(safe_get_attribute(insights, 'segment', 'Unknown'))
-            st.markdown("**Confidence**")
-            st.write(f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}")
-        
-        with col2:
-            st.markdown("**Life Stage**")
-            life_stage = safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()
-            st.write(life_stage)
-            st.markdown("**Digital Persona**")
-            digital_persona = safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()
-            st.write(digital_persona)
-        
-        with col3:
-            st.markdown("**Financial Profile**")
-            financial_profile = safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()
-            st.write(financial_profile)
-            st.markdown("**Communication Style**")
-            communication_style = safe_get_attribute(insights, 'communication_style', 'unknown').title()
-            st.write(communication_style)
-        
-        with col4:
-            st.markdown("**Personalization Level**")
-            level = safe_get_attribute(strategy, 'level.value', 'basic').upper()
-            st.write(level)
-            st.markdown("**Processing Time**")
-            processing_time = ctx.processing_time
-            st.write(f"{processing_time:.1f}s")
-        
-        # Customer story
-        customer_story = safe_get_attribute(strategy, 'customer_story', '')
-        if customer_story:
-            st.markdown("**🎯 AI Customer Story:**")
-            st.info(customer_story)
-        
-        # Personalization hooks
-        personalization_hooks = safe_get_attribute(insights, 'personalization_hooks', [])
-        if personalization_hooks:
-            with st.expander("🎣 AI Personalization Hooks", expanded=False):
-                for i, hook in enumerate(personalization_hooks[:5], 1):
-                    st.write(f"{i}. {hook}")
-        
-        # Special factors
-        special_factors = safe_get_attribute(insights, 'special_factors', [])
+
+        st.markdown("<div class='lbg-card is-highlight'>", unsafe_allow_html=True)
+        st.markdown("### Shared Brain Intelligence")
+
+        metric_tiles = [
+            ('Segment', safe_get_attribute(insights, 'segment', 'Unknown').title()),
+            ('Confidence', f"{safe_get_attribute(insights, 'confidence_score', 0):.1%}"),
+            ('Life Stage', safe_get_attribute(insights, 'life_stage', 'unknown').replace('_', ' ').title()),
+            ('Digital Persona', safe_get_attribute(insights, 'digital_persona', 'unknown').replace('_', ' ').title()),
+            ('Financial Profile', safe_get_attribute(insights, 'financial_profile', 'unknown').replace('_', ' ').title()),
+            ('Comm Style', safe_get_attribute(insights, 'communication_style', 'unknown').title()),
+            ('Personalisation Level', safe_get_attribute(strategy, 'level.value', 'basic').upper()),
+            ('Processing Time', f"{ctx.processing_time:.2f}s" if ctx.processing_time else 'n/a'),
+        ]
+
+        metric_html = ''.join(
+            f"<div class='lbg-metric-tile'><div class='lbg-metric-label'>{html.escape(label)}</div><div class='lbg-metric-value'>{html.escape(value)}</div></div>"
+            for label, value in metric_tiles
+        )
+        st.markdown("<div class='lbg-metric-grid'>" + metric_html + "</div>", unsafe_allow_html=True)
+
+        special_factors = safe_get_attribute(insights, 'special_factors', []) or []
         if special_factors:
-            with st.expander("🌟 Special Factors", expanded=False):
-                for factor in special_factors:
-                    st.write(f"• {factor}")
-        
-        # Must mention items
-        must_mention = safe_get_attribute(strategy, 'must_mention', [])
-        if must_mention:
-            with st.expander("✅ Must Mention Items", expanded=False):
-                for item in must_mention[:3]:
-                    st.write(f"• {item}")
-        
-        # Channel decisions
-        with st.expander("📺 Channel Decisions", expanded=False):
-            enabled_channels = safe_get_attribute(ctx, 'channel_decisions.enabled_channels', {})
-            channel_reasons = safe_get_attribute(ctx, 'channel_decisions.reasons', {})
-            
-            for channel, enabled in enabled_channels.items():
-                status = "✅ Enabled" if enabled else "❌ Disabled"
-                reason = channel_reasons.get(channel, "No reason provided")
-                st.write(f"**{channel.upper()}:** {status} - {reason}")
-        
+            tag_html = ''.join(f"<span class='lbg-tag'>{html.escape(str(factor))}</span>" for factor in special_factors)
+            st.markdown("<div class='lbg-section-title'>Key Drivers</div>", unsafe_allow_html=True)
+            st.markdown(tag_html, unsafe_allow_html=True)
+
+        hooks = safe_get_attribute(insights, 'personalization_hooks', []) or []
+        if hooks:
+            st.markdown("<div class='lbg-section-title'>Personalisation Hooks</div>", unsafe_allow_html=True)
+            for idx, hook in enumerate(hooks[:5], 1):
+                st.markdown(f"{idx}. {hook}")
+
+        connection_points = safe_get_attribute(strategy, 'connection_points', {}) or {}
+        if connection_points:
+            st.markdown("<div class='lbg-section-title'>Connection Points</div>", unsafe_allow_html=True)
+            for key, value in connection_points.items():
+                st.markdown(f"- **{key.replace('_', ' ').title()}:** {value}")
+
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     def display_analysis(self):
         """Display deep personalization analysis"""
         if not st.session_state.shared_context:
-            st.info("No analysis available yet")
+            st.info('No analysis available yet')
             return
-        
+
         ctx = st.session_state.shared_context
         insights = ctx.customer_insights
         strategy = ctx.personalization_strategy
-        
-        st.markdown('<div class="personalization-insights">', unsafe_allow_html=True)
-        st.markdown("### 🎯 Deep Personalization Analysis")
-        
-        # Brain insights
-        st.markdown("**🧠 Brain Insights:**")
-        
+
+        st.markdown("<div class='lbg-card'>", unsafe_allow_html=True)
+        st.markdown("### Deep Personalisation Analysis")
+
+        st.markdown("<div class='lbg-section-title'>Brain Insights</div>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            st.write(f"• **Segment:** {safe_get_attribute(insights, 'segment', 'UNKNOWN')}")
-            st.write(f"• **Life Stage:** {safe_get_attribute(insights, 'life_stage', 'unknown')}")
-            st.write(f"• **Digital Persona:** {safe_get_attribute(insights, 'digital_persona', 'unknown')}")
-        
+            st.write(f"- **Segment:** {safe_get_attribute(insights, 'segment', 'UNKNOWN')}")
+            st.write(f"- **Life Stage:** {safe_get_attribute(insights, 'life_stage', 'unknown')}")
+            st.write(f"- **Digital Persona:** {safe_get_attribute(insights, 'digital_persona', 'unknown')}")
         with col2:
-            st.write(f"• **Financial Profile:** {safe_get_attribute(insights, 'financial_profile', 'unknown')}")
-            st.write(f"• **Communication Style:** {safe_get_attribute(insights, 'communication_style', 'unknown')}")
-            st.write(f"• **Confidence:** {safe_get_attribute(insights, 'confidence_score', 0):.1%}")
-        
-        # Special factors
+            st.write(f"- **Financial Profile:** {safe_get_attribute(insights, 'financial_profile', 'unknown')}")
+            st.write(f"- **Communication Style:** {safe_get_attribute(insights, 'communication_style', 'unknown')}")
+            st.write(f"- **Confidence:** {safe_get_attribute(insights, 'confidence_score', 0):.1%}")
+
         special_factors = safe_get_attribute(insights, 'special_factors', [])
         if special_factors:
-            st.markdown("**🎯 Special Factors:**")
-            for factor in special_factors:
-                st.write(f"• {factor}")
-        
-        # Personalization hooks
+            st.markdown("<div class='lbg-section-title'>Special Factors</div>", unsafe_allow_html=True)
+            tags = ''.join(f"<span class='lbg-tag'>{html.escape(str(factor))}</span>" for factor in special_factors)
+            st.markdown(tags, unsafe_allow_html=True)
+
         hooks = safe_get_attribute(insights, 'personalization_hooks', [])
         if hooks:
-            st.markdown("**🎣 AI Personalization Hooks:**")
+            st.markdown("<div class='lbg-section-title'>AI Personalisation Hooks</div>", unsafe_allow_html=True)
             for i, hook in enumerate(hooks[:5], 1):
-                st.write(f"{i}. {hook}")
-        
-        # Connection points
+                st.markdown(f"{i}. {hook}")
+
         connection_points = safe_get_attribute(strategy, 'connection_points', {})
         if connection_points:
-            st.markdown("**🔗 Connection Points:**")
+            st.markdown("<div class='lbg-section-title'>Connection Points</div>", unsafe_allow_html=True)
             for key, value in connection_points.items():
-                st.write(f"• **{key}:** {value}")
-        
-        # Hallucination Analysis Summary
+                st.markdown(f"- **{key.replace('_', ' ').title()}:** {value}")
+
         if st.session_state.hallucination_result:
-            st.markdown("---")
-            st.markdown("**🚨 Hallucination Analysis Summary:**")
+            st.markdown("<div class='lbg-divider'></div>", unsafe_allow_html=True)
+            st.markdown("**Hallucination Analysis Summary**")
             report = st.session_state.hallucination_result
-            
+
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Total Findings", report.total_hallucinations)
@@ -976,21 +950,20 @@ class PersonalizationApp:
                 st.metric("Risk Score", f"{report.risk_score:.0%}")
             with col3:
                 st.metric("Confidence", f"{report.analysis_confidence:.0%}")
-            
+
             if report.summary:
                 st.info(report.summary)
-            
+
             if report.recommendations:
                 st.markdown("**Recommendations:**")
                 for rec in report.recommendations[:3]:
-                    st.write(f"• {rec}")
-        
-        # Refinement Summary
+                    st.markdown(f"- {rec}")
+
         if st.session_state.refined_email_result and REFINEMENT_AVAILABLE:
-            st.markdown("---")
-            st.markdown("**✨ Email Refinement Summary:**")
+            st.markdown("<div class='lbg-divider'></div>", unsafe_allow_html=True)
+            st.markdown("**Email Refinement Summary**")
             refined = st.session_state.refined_email_result
-            
+
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Hallucinations Removed", refined.metrics.hallucinations_removed)
@@ -1001,19 +974,18 @@ class PersonalizationApp:
                 st.metric("Quality Improvement", f"+{quality_delta:.0f}%")
             with col4:
                 personal_delta = (refined.metrics.personalization_score_after - refined.metrics.personalization_score_before) * 100
-                st.metric("Personalization Boost", f"+{personal_delta:.0f}%")
-        
-        # Banking Sentiment Analysis Summary
+                st.metric("Personalisation Boost", f"+{personal_delta:.0f}%")
+
         if st.session_state.sentiment_result_banking and BANKING_SENTIMENT_AVAILABLE:
-            st.markdown("---")
-            st.markdown("**🎭 Banking Sentiment Summary:**")
+            st.markdown("<div class='lbg-divider'></div>", unsafe_allow_html=True)
+            st.markdown("**Banking Sentiment Summary**")
             sentiment = st.session_state.sentiment_result_banking
-            
+
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Overall Score", f"{sentiment.get('overall_score', 0)}/100")
             with col2:
-                ready_text = "✅ Ready" if sentiment.get('ready_to_send', False) else "❌ Not Ready"
+                ready_text = 'Ready' if sentiment.get('ready_to_send', False) else 'Requires Review'
                 st.metric("Status", ready_text)
             with col3:
                 complaint_risk = sentiment.get('customer_impact', {}).get('complaint_risk', 0)
@@ -1021,64 +993,106 @@ class PersonalizationApp:
             with col4:
                 nps_impact = sentiment.get('nps_impact', {}).get('predicted_impact', 0)
                 st.metric("NPS Impact", f"{'+' if nps_impact > 0 else ''}{nps_impact}")
-            
-            # Executive summary
+
             if 'executive_summary' in sentiment:
                 st.info(sentiment['executive_summary'])
-            
-            # Show decision rationale if available
+
             if 'decision_rationale' in sentiment:
                 rationale = sentiment['decision_rationale']
-                with st.expander("📋 Decision Factors"):
+                with st.expander("Decision Factors"):
                     for factor in rationale.get('primary_factors', []):
-                        st.write(f"• {factor}")
-        
+                        st.markdown(f"- {factor}")
+
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
+
+
     def run(self):
         """Main application loop"""
         self.display_header()
         self.display_sidebar()
-        
-        # Two column layout
+
         col1, col2 = st.columns([1, 2])
-        
+
         with col1:
-            st.header("📥 Input & Intelligence")
-            
-            # Letter upload
-            st.subheader("1. Upload Letter")
-            letter_content = self.handle_letter_upload()
-            
-            if letter_content:
-                # Document analysis display
-                self.display_document_analysis()
-                
-                # Customer upload
-                st.subheader("2. Upload Customers")
-                customer_file = st.file_uploader("Select CSV/Excel", type=['csv', 'xlsx'])
-                
-                if customer_file:
-                    # Load customers
-                    if customer_file.type == 'text/csv':
-                        customers_df = pd.read_csv(customer_file)
-                    else:
-                        customers_df = pd.read_excel(customer_file)
-                    
-                    st.success(f"Loaded {len(customers_df)} customers")
-                    
-                    # Select customer
-                    st.subheader("3. Select Customer")
-                    selected_customer = self.handle_customer_selection(customers_df)
-                    
-                    if selected_customer:
-                        # Process button
-                        if st.button("🧠 Analyze with Shared Brain", type="primary", use_container_width=True):
-                            self.process_customer(letter_content, selected_customer)
-        
+            with lbg_card(
+                "Input Workspace",
+                "Upload source material and prepare the Shared Brain journey.",
+                badge="Setup",
+            ):
+                st.markdown(
+                    """
+                    <div class='lbg-step-item'>
+                        <div class='lbg-step-icon'>1</div>
+                        <div class='lbg-step-content'>
+                            <h4>Upload Letter Template</h4>
+                            <p>Select the base document you want the engine to personalise.</p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                letter_content = self.handle_letter_upload()
+                active_letter = letter_content or st.session_state.get('letter_content')
+
+                if active_letter:
+                    st.markdown("<div class='lbg-divider'></div>", unsafe_allow_html=True)
+                    st.markdown("#### Document Intelligence")
+                    self.display_document_analysis()
+
+                    st.markdown("<div class='lbg-divider'></div>", unsafe_allow_html=True)
+                    st.markdown(
+                        """
+                        <div class='lbg-step-item'>
+                            <div class='lbg-step-icon'>2</div>
+                            <div class='lbg-step-content'>
+                                <h4>Upload Customer Data</h4>
+                                <p>Provide the audience list so the engine can tailor messaging per persona.</p>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    customer_file = st.file_uploader("Select CSV/Excel", type=['csv', 'xlsx'])
+
+                    if customer_file:
+                        if customer_file.type == 'text/csv':
+                            customers_df = pd.read_csv(customer_file)
+                        else:
+                            customers_df = pd.read_excel(customer_file)
+
+                        st.success(f"Loaded {len(customers_df)} customers")
+
+                        st.markdown(
+                            """
+                            <div class='lbg-step-item'>
+                                <div class='lbg-step-icon'>3</div>
+                                <div class='lbg-step-content'>
+                                    <h4>Select Customer & Analyse</h4>
+                                    <p>Review insights and launch Shared Brain for the selected profile.</p>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                        selected_customer = self.handle_customer_selection(customers_df)
+
+                        if selected_customer:
+                            if st.button("Analyse with Shared Brain", type="primary", use_container_width=True):
+                                self.process_customer(active_letter, selected_customer)
+                else:
+                    st.caption("Accepted formats: TXT, DOCX, PDF (max 200MB).")
+
         with col2:
-            st.header("🎯 AI Intelligence & Results")
-            self.display_results()
+            with lbg_card(
+                "AI Intelligence & Results",
+                "Review personalised outputs, validations, and channel intelligence.",
+                badge="Shared Brain",
+            ):
+                self.display_results()
+
 
 # Run the application
 if __name__ == "__main__":

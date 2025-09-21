@@ -14,17 +14,17 @@ try:
     REFINER_AVAILABLE = True
 except ImportError:
     REFINER_AVAILABLE = False
-    print("⚠️ Email refiner not available")
+    print("WARNING: Email refiner not available")
 
 class RefinementDisplay(BaseChannelDisplay):
     """Display handler for email refinement results"""
     
     def __init__(self):
-        super().__init__("Email Refinement", "✨")
+        super().__init__("Email Refinement", "")
         self.style = """
         <style>
         .refinement-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #006A4D 0%, #013826 100%);
             color: white;
             padding: 1.5rem;
             border-radius: 10px;
@@ -33,7 +33,7 @@ class RefinementDisplay(BaseChannelDisplay):
         }
         
         .metrics-improvement {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            background: linear-gradient(135deg, #00A651 0%, #006A4D 100%);
             padding: 1.5rem;
             border-radius: 10px;
             margin: 1rem 0;
@@ -47,35 +47,38 @@ class RefinementDisplay(BaseChannelDisplay):
         }
         
         .before-box {
-            background: #fff5f5;
-            border: 2px solid #feb2b2;
+            background: #F5F7F4;
+            border: 2px solid #C40000;
             border-radius: 10px;
             padding: 1.5rem;
         }
         
         .after-box {
-            background: #f0fff4;
-            border: 2px solid #9ae6b4;
+            background: #F5F7F4;
+            border: 2px solid #00A651;
             border-radius: 10px;
             padding: 1.5rem;
         }
         
         .hallucination-removed {
-            background: #fed7d7;
+            background: #F8F9FA;
+            border: 1px solid #C40000;
             text-decoration: line-through;
             padding: 2px 4px;
             border-radius: 3px;
         }
         
         .inference-added {
-            background: #c6f6d5;
+            background: #F5F7F4;
+            border: 1px solid #00A651;
             padding: 2px 4px;
             border-radius: 3px;
             font-weight: bold;
         }
         
         .metric-card {
-            background: white;
+            background: #F8F9FA;
+            border: 1px solid #E5E5E5;
             padding: 1rem;
             border-radius: 8px;
             text-align: center;
@@ -89,12 +92,12 @@ class RefinementDisplay(BaseChannelDisplay):
         }
         
         .metric-label {
-            color: #666;
+            color: #013826;
             font-size: 0.9em;
         }
         
         .improvement-arrow {
-            color: #48bb78;
+            color: #00A651;
             font-size: 1.2em;
         }
         
@@ -106,7 +109,8 @@ class RefinementDisplay(BaseChannelDisplay):
         }
         
         .personalization-dna {
-            background: #f7fafc;
+            background: #F8F9FA;
+            border: 1px solid #E5E5E5;
             padding: 1rem;
             border-radius: 8px;
             margin: 1rem 0;
@@ -114,7 +118,7 @@ class RefinementDisplay(BaseChannelDisplay):
         
         .dna-bar {
             height: 30px;
-            background: linear-gradient(to right, #4299e1 0%, #48bb78 100%);
+            background: linear-gradient(to right, #006A4D 0%, #00A651 100%);
             border-radius: 15px;
             position: relative;
             margin: 10px 0;
@@ -125,8 +129,8 @@ class RefinementDisplay(BaseChannelDisplay):
             top: -5px;
             width: 40px;
             height: 40px;
-            background: white;
-            border: 3px solid #333;
+            background: #F5F7F4;
+            border: 3px solid #013826;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -144,7 +148,7 @@ class RefinementDisplay(BaseChannelDisplay):
         """Display refinement results within the hallucination tab"""
         
         if not refined_result or not REFINER_AVAILABLE:
-            st.error("❌ No refinement results available")
+            st.error("No refinement results available")
             return
         
         try:
@@ -154,7 +158,7 @@ class RefinementDisplay(BaseChannelDisplay):
             # Header
             st.markdown('''
             <div class="refinement-header">
-                <h2>✨ Email Refinement Complete</h2>
+                <h2>Email Refinement Complete</h2>
                 <p>Hallucinations removed, personalization enhanced</p>
             </div>
             ''', unsafe_allow_html=True)
@@ -182,22 +186,22 @@ class RefinementDisplay(BaseChannelDisplay):
     def _display_metrics_improvement(self, metrics: 'RefinementMetrics') -> None:
         """Display improvement metrics"""
         
-        st.markdown("### 📊 Refinement Impact")
+        st.markdown("### Refinement Impact")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            hallucinations_icon = "🚫" if metrics.hallucinations_removed > 0 else "✅"
+            hallucinations_status = "REMOVED" if metrics.hallucinations_removed > 0 else "CLEAN"
             st.metric(
-                f"{hallucinations_icon} Hallucinations",
+                f"Hallucinations {hallucinations_status}",
                 f"{metrics.hallucinations_removed} removed",
                 delta=f"-{metrics.hallucinations_removed}" if metrics.hallucinations_removed > 0 else "Clean"
             )
         
         with col2:
-            inferences_icon = "➕" if metrics.inferences_added > 0 else "📝"
+            inferences_status = "ADDED" if metrics.inferences_added > 0 else "NONE"
             st.metric(
-                f"{inferences_icon} Inferences",
+                f"Inferences {inferences_status}",
                 f"{metrics.inferences_added} added",
                 delta=f"+{metrics.inferences_added}" if metrics.inferences_added > 0 else None
             )
@@ -207,7 +211,7 @@ class RefinementDisplay(BaseChannelDisplay):
             quality_after = metrics.quality_score_after * 100
             quality_delta = quality_after - quality_before
             st.metric(
-                "📈 Quality Score",
+                "Quality Score",
                 f"{quality_after:.0f}%",
                 delta=f"+{quality_delta:.0f}%" if quality_delta > 0 else f"{quality_delta:.0f}%"
             )
@@ -217,7 +221,7 @@ class RefinementDisplay(BaseChannelDisplay):
             personalization_after = metrics.personalization_score_after * 100
             personalization_delta = personalization_after - personalization_before
             st.metric(
-                "🎯 Personalization",
+                "Personalization",
                 f"{personalization_after:.0f}%",
                 delta=f"+{personalization_delta:.0f}%" if personalization_delta > 0 else f"{personalization_delta:.0f}%"
             )
@@ -225,15 +229,15 @@ class RefinementDisplay(BaseChannelDisplay):
     def _display_fixes_applied(self, refined_result: 'RefinedEmailResult') -> None:
         """Show what was fixed"""
         
-        with st.expander("🔧 Refinements Applied", expanded=True):
+        with st.expander("Refinements Applied", expanded=True):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("**🚫 Hallucinations Removed:**")
+                st.markdown("**Hallucinations Removed:**")
                 if refined_result.hallucinations_addressed:
                     for h in refined_result.hallucinations_addressed[:5]:
                         st.markdown(f"""
-                        <div style="background: #fed7d7; padding: 8px; margin: 5px 0; border-radius: 5px;">
+                        <div style="background: #F8F9FA; border: 1px solid #C40000; padding: 8px; margin: 5px 0; border-radius: 5px;">
                             <s>{h['text']}</s><br>
                             <small>Category: {h['category']}</small>
                         </div>
@@ -242,17 +246,17 @@ class RefinementDisplay(BaseChannelDisplay):
                     st.success("No hallucinations to remove")
             
             with col2:
-                st.markdown("**✨ Inferences Added:**")
+                st.markdown("**Inferences Added:**")
                 if refined_result.inferences_applied:
                     for inf in refined_result.inferences_applied[:5]:
                         confidence_color = {
-                            'high': '#48bb78',
-                            'medium': '#ed8936',
-                            'low': '#f6e05e'
-                        }.get(inf.confidence.value, '#718096')
+                            'high': '#00A651',
+                            'medium': '#C4B000',
+                            'low': '#C40000'
+                        }.get(inf.confidence.value, '#013826')
                         
                         st.markdown(f"""
-                        <div style="background: #c6f6d5; padding: 8px; margin: 5px 0; border-radius: 5px;">
+                        <div style="background: #F5F7F4; border: 1px solid #00A651; padding: 8px; margin: 5px 0; border-radius: 5px;">
                             "{inf.inference}"<br>
                             <small style="color: {confidence_color};">
                                 Confidence: {inf.confidence.value.upper()} | {inf.category}
@@ -265,7 +269,7 @@ class RefinementDisplay(BaseChannelDisplay):
     def _display_before_after(self, refined_result: 'RefinedEmailResult') -> None:
         """Display before/after comparison"""
         
-        st.markdown("### 📝 Before & After Comparison")
+        st.markdown("### Before & After Comparison")
         
         # Use tabs for cleaner comparison
         tab1, tab2, tab3 = st.tabs(["Side by Side", "Original", "Refined"])
@@ -274,7 +278,7 @@ class RefinementDisplay(BaseChannelDisplay):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("**❌ Original (with issues)**")
+                st.markdown("**Original (with issues)**")
                 # Show COMPLETE email, not truncated
                 original_content_escaped = refined_result.original_email.content.replace('\n', '<br>')
                 st.markdown(f"""
@@ -287,7 +291,7 @@ class RefinementDisplay(BaseChannelDisplay):
                 """, unsafe_allow_html=True)
             
             with col2:
-                st.markdown("**✅ Refined Version**")
+                st.markdown("**Refined Version**")
                 # Show COMPLETE refined email, not truncated
                 refined_content_escaped = refined_result.refined_content.replace('\n', '<br>')
                 st.markdown(f"""
@@ -318,7 +322,7 @@ class RefinementDisplay(BaseChannelDisplay):
     def _display_personalization_dna(self, refined_result: 'RefinedEmailResult') -> None:
         """Display personalization DNA visualization"""
         
-        with st.expander("🧬 Personalization DNA", expanded=False):
+        with st.expander("Personalization DNA", expanded=False):
             st.markdown("**Before:**")
             before_score = int(refined_result.metrics.personalization_score_before * 10)
             self._draw_dna_bar(before_score, 10)
@@ -344,11 +348,11 @@ class RefinementDisplay(BaseChannelDisplay):
         filled_blocks = "●" * filled
         empty_blocks = "○" * (total - filled)
         
-        bar_color = "#48bb78" if filled >= 8 else "#ed8936" if filled >= 5 else "#e53e3e"
+        bar_color = "#00A651" if filled >= 8 else "#C4B000" if filled >= 5 else "#C40000"
         
         st.markdown(f"""
         <div style="font-size: 1.5em; color: {bar_color}; letter-spacing: 2px;">
-            {filled_blocks}<span style="color: #cbd5e0;">{empty_blocks}</span>
+            {filled_blocks}<span style="color: #E5E5E5;">{empty_blocks}</span>
             <span style="font-size: 0.8em; margin-left: 10px;">{filled}/{total}</span>
         </div>
         """, unsafe_allow_html=True)
@@ -361,26 +365,26 @@ class RefinementDisplay(BaseChannelDisplay):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("✅ Accept Refined", type="primary", use_container_width=True):
+            if st.button("Accept Refined", type="primary", use_container_width=True):
                 st.session_state.email_result = self._convert_to_email_result(refined_result)
                 st.session_state.refinement_accepted = True
                 st.success("Refined email accepted!")
                 st.rerun()
         
         with col2:
-            if st.button("❌ Keep Original", use_container_width=True):
+            if st.button("Keep Original", use_container_width=True):
                 st.session_state.refinement_rejected = True
                 st.info("Keeping original email")
         
         with col3:
-            if st.button("🔄 Refine Again", use_container_width=True):
+            if st.button("Refine Again", use_container_width=True):
                 st.session_state.refine_again = True
                 st.rerun()
         
         with col4:
             # Download refined version
             st.download_button(
-                "📥 Download Refined",
+                "Download Refined",
                 refined_result.refined_content,
                 file_name=f"refined_email_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain",

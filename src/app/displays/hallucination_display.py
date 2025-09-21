@@ -30,17 +30,17 @@ try:
     HALLUCINATION_TYPES_AVAILABLE = True
 except ImportError:
     HALLUCINATION_TYPES_AVAILABLE = False
-    print("⚠️ Hallucination types not available")
+    print("WARNING: Hallucination types not available")
 
 class HallucinationDisplay(BaseChannelDisplay):
     """Display handler for hallucination detection results with refinement actions"""
     
     def __init__(self):
-        super().__init__("Hallucination Check", "🚨")
+        super().__init__("Hallucination Check", "")
         self.style = """
         <style>
         .hallucination-header {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            background: linear-gradient(135deg, #006A4D 0%, #013826 100%);
             color: white;
             padding: 1.5rem;
             border-radius: 10px;
@@ -49,7 +49,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         }
         
         .risk-gauge {
-            background: #f8f9fa;
+            background: #F8F9FA;
             border-radius: 10px;
             padding: 1.5rem;
             margin: 1rem 0;
@@ -59,7 +59,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         .risk-meter {
             width: 100%;
             height: 30px;
-            background: linear-gradient(to right, #4CAF50 0%, #FFC107 50%, #FF5252 100%);
+            background: linear-gradient(to right, #00A651 0%, #C4B000 50%, #C40000 100%);
             border-radius: 15px;
             position: relative;
             margin: 1rem 0;
@@ -86,57 +86,60 @@ class HallucinationDisplay(BaseChannelDisplay):
             padding: 1.5rem;
             margin: 1rem 0;
             border-left: 5px solid;
+            border: 1px solid #E5E5E5;
         }
         
         .finding-high {
-            background: #ffebee;
-            border-left-color: #f44336;
+            background: #F5F7F4;
+            border-left-color: #C40000;
         }
         
         .finding-medium {
-            background: #fff3e0;
-            border-left-color: #ff9800;
+            background: #F5F7F4;
+            border-left-color: #C4B000;
         }
         
         .finding-low {
-            background: #fff8e1;
-            border-left-color: #ffc107;
+            background: #F5F7F4;
+            border-left-color: #00A651;
         }
         
         .hallucinated-text {
-            background: #ffcccc;
+            background: #F5F7F4;
             padding: 2px 6px;
             border-radius: 4px;
             font-weight: bold;
+            border: 1px solid #C40000;
         }
         
         .suggested-fix {
-            background: #c8e6c9;
+            background: #F5F7F4;
             padding: 2px 6px;
             border-radius: 4px;
             font-style: italic;
+            border: 1px solid #00A651;
         }
         
         .context-box {
-            background: #f5f5f5;
+            background: #F8F9FA;
             padding: 1rem;
             border-radius: 5px;
             margin: 0.5rem 0;
             font-family: monospace;
             font-size: 0.9em;
-            border: 1px solid #ddd;
+            border: 1px solid #E5E5E5;
         }
         
         .recommendation-box {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
+            background: #F5F7F4;
+            border-left: 4px solid #006A4D;
             padding: 1rem;
             margin: 0.5rem 0;
             border-radius: 5px;
         }
         
         .summary-box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #006A4D 0%, #013826 100%);
             color: white;
             padding: 1.5rem;
             border-radius: 10px;
@@ -144,7 +147,8 @@ class HallucinationDisplay(BaseChannelDisplay):
         }
         
         .refinement-actions {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            background: linear-gradient(135deg, #00A651 0%, #006A4D 100%);
+            color: white;
             padding: 1.5rem;
             border-radius: 10px;
             margin: 1.5rem 0;
@@ -156,7 +160,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         """Main display method for hallucination report"""
         
         if not report or not HALLUCINATION_TYPES_AVAILABLE:
-            st.error("❌ No hallucination report available or types not imported")
+            st.error("No hallucination report available or types not imported")
             return
         
         try:
@@ -208,7 +212,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         if channels_with_issues:
             st.markdown("---")
             st.markdown('<div class="refinement-actions">', unsafe_allow_html=True)
-            st.markdown("### 🔧 Refinement Actions")
+            st.markdown("### Refinement Actions")
             st.markdown("Remove hallucinations and enhance personalization:")
             
             # Create columns for buttons
@@ -217,7 +221,7 @@ class HallucinationDisplay(BaseChannelDisplay):
             for idx, (channel, count) in enumerate(channels_with_issues.items()):
                 with cols[idx % len(cols)]:
                     if channel == 'email':
-                        button_label = f"✨ Refine Email ({count} issues)"
+                        button_label = f"Refine Email ({count} issues)"
                         button_key = f"refine_email_btn_{id(report)}"  # Unique key
                         
                         if st.button(button_label, key=button_key, type="primary", use_container_width=True):
@@ -227,17 +231,17 @@ class HallucinationDisplay(BaseChannelDisplay):
                             st.rerun()
                     
                     elif channel == 'letter':
-                        button_label = f"✨ Refine Letter ({count} issues)"
+                        button_label = f"Refine Letter ({count} issues)"
                         st.button(button_label, disabled=True, use_container_width=True, 
                                 help="Letter refinement coming soon")
                     
                     elif channel == 'sms':
-                        button_label = f"✨ Refine SMS ({count} issues)"
+                        button_label = f"Refine SMS ({count} issues)"
                         st.button(button_label, disabled=True, use_container_width=True,
                                 help="SMS refinement coming soon")
                     
                     elif channel == 'voice':
-                        button_label = f"✨ Refine Voice ({count} issues)"
+                        button_label = f"Refine Voice ({count} issues)"
                         st.button(button_label, disabled=True, use_container_width=True,
                                 help="Voice refinement coming soon")
             
@@ -245,11 +249,11 @@ class HallucinationDisplay(BaseChannelDisplay):
             
             # Show refinement status if in progress
             if st.session_state.get('refinement_in_progress', False):
-                with st.spinner("🔄 Refining email... Removing hallucinations and enhancing personalization..."):
+                with st.spinner("Refining email: Removing hallucinations and enhancing personalization..."):
                     # The actual refinement will be handled in main_modular.py
                     pass
         else:
-            st.success("✅ No hallucinations detected - content is clean!")
+            st.success("No hallucinations detected - content is clean!")
     
     def _get_findings_for_channel(self, report: Any, channel: str) -> list:
         """Get findings for a specific channel"""
@@ -275,13 +279,13 @@ class HallucinationDisplay(BaseChannelDisplay):
         # Determine risk level and color
         if risk_score > 0.7:
             risk_level = "HIGH RISK"
-            color = "#FF5252"
+            color = "#C40000"
         elif risk_score > 0.4:
             risk_level = "MEDIUM RISK"
-            color = "#FFC107"
+            color = "#C4B000"
         else:
             risk_level = "LOW RISK"
-            color = "#4CAF50"
+            color = "#00A651"
         
         col1, col2, col3 = st.columns([1, 2, 1])
         
@@ -325,7 +329,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         if hasattr(report, 'summary') and report.summary:
             st.markdown(f'''
             <div class="summary-box">
-                <h3>📋 Executive Summary</h3>
+                <h3>Executive Summary</h3>
                 <p>{report.summary}</p>
             </div>
             ''', unsafe_allow_html=True)
@@ -333,10 +337,10 @@ class HallucinationDisplay(BaseChannelDisplay):
     def _display_findings_by_channel(self, report: Any) -> None:
         """Display findings organized by channel"""
         if not hasattr(report, 'findings') or not report.findings:
-            st.success("✅ No hallucinations detected!")
+            st.success("No hallucinations detected!")
             return
         
-        st.markdown("### 🔍 Detailed Findings")
+        st.markdown("### Detailed Findings")
         
         # Group findings by channel
         channels = {}
@@ -385,7 +389,7 @@ class HallucinationDisplay(BaseChannelDisplay):
         st.markdown(f'''
         <div class="finding-card {severity_class}">
             <h4>Finding #{index}: {category.replace('_', ' ').title()}</h4>
-            <p><strong>Severity:</strong> <span style="color: {"#f44336" if severity == "high" else "#ff9800" if severity == "medium" else "#ffc107"};">{severity.upper()}</span></p>
+            <p><strong>Severity:</strong> <span style="color: {"#C40000" if severity == "high" else "#C4B000" if severity == "medium" else "#00A651"};">{severity.upper()}</span></p>
             <p><strong>Confidence:</strong> {confidence:.0%}</p>
             <p><strong>Hallucinated Text:</strong> <span class="hallucinated-text">{hallucinated_text}</span></p>
             <div class="context-box">
@@ -400,18 +404,18 @@ class HallucinationDisplay(BaseChannelDisplay):
     def _display_recommendations(self, report: Any) -> None:
         """Display recommendations"""
         if hasattr(report, 'recommendations') and report.recommendations:
-            st.markdown("### 💡 Recommendations")
+            st.markdown("### RECOMMENDATIONS")
             
             for rec in report.recommendations:
                 st.markdown(f'''
                 <div class="recommendation-box">
-                    ✅ {rec}
+                    RECOMMENDATION: {rec}
                 </div>
                 ''', unsafe_allow_html=True)
     
     def _display_technical_details(self, report: Any) -> None:
         """Display technical details"""
-        with st.expander("🔧 Technical Details", expanded=False):
+        with st.expander("TECHNICAL DETAILS", expanded=False):
             details = {
                 "Model Used": report.model_used if hasattr(report, 'model_used') else 'Unknown',
                 "Processing Time": f"{report.processing_time:.2f}s" if hasattr(report, 'processing_time') else 'N/A',

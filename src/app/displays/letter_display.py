@@ -68,7 +68,7 @@ class LetterDisplay(BaseChannelDisplay):
             self._display_letter_metrics(result)
             
             # Display letter content
-            st.markdown("**📄 Letter Preview:**")
+            st.markdown("**Letter Preview:**")
             self._display_letter_content(result)
             
             # Display personalization details

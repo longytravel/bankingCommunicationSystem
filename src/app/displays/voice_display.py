@@ -41,7 +41,7 @@ class VoiceDisplay(BaseChannelDisplay):
     
     def __init__(self):
         # FIXED: Properly initialize base class with channel_name and icon
-        super().__init__(channel_name="Voice Note", icon="🎙️")
+        super().__init__(channel_name="Voice Note", icon="[VOICE]")
     
     def display_result(self, result: Any, shared_context: Any) -> None:
         """Override base class method to display voice result"""
@@ -57,14 +57,14 @@ class VoiceDisplay(BaseChannelDisplay):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             if result.generation_method == 'disabled':
-                st.error("❌ Disabled")
+                st.error("[DISABLED] Disabled")
             elif result.audio_file_path:
-                st.success("✅ Generated")
+                st.success("[GENERATED] Generated")
             else:
-                st.warning("⚠️ Script Only")
+                st.warning("[SCRIPT] Script Only")
         
         with col2:
-            st.info(f"🌍 {result.language}")
+            st.info(f"[LANG] {result.language}")
         
         with col3:
             if result.duration_estimate > 0:
@@ -86,7 +86,7 @@ class VoiceDisplay(BaseChannelDisplay):
         
         # Audio Player Section
         if result.audio_file_path:
-            st.markdown("### 🎵 Audio Player")
+            st.markdown("### [AUDIO] Audio Player")
             
             # Check if file exists
             audio_path = Path(result.audio_file_path)
@@ -104,14 +104,14 @@ class VoiceDisplay(BaseChannelDisplay):
                     col1, col2 = st.columns(2)
                     with col1:
                         st.download_button(
-                            label="📥 Download Audio",
+                            label="[DOWNLOAD] Download Audio",
                             data=audio_bytes,
                             file_name=audio_path.name,
                             mime=f'audio/{result.audio_format}'
                         )
                     
                     with col2:
-                        st.info(f"🎙️ Engine: {result.tts_engine_used}")
+                        st.info(f"[ENGINE] Engine: {result.tts_engine_used}")
                     
                 except Exception as e:
                     st.error(f"Error loading audio: {e}")
@@ -119,10 +119,10 @@ class VoiceDisplay(BaseChannelDisplay):
                 st.warning(f"Audio file not found: {audio_path}")
                 st.info("Showing script only")
         else:
-            st.info("🔇 No audio generated - Showing script only")
+            st.info("[NO AUDIO] No audio generated - Showing script only")
         
         # Script Section
-        st.markdown("### 📝 Voice Script")
+        st.markdown("### [SCRIPT] Voice Script")
         
         # Language indicator
         if result.language != 'English':
@@ -133,16 +133,17 @@ class VoiceDisplay(BaseChannelDisplay):
             # Create a nice box for the script
             script_html = f"""
             <div style="
-                background-color: #f0f2f6;
-                border-left: 4px solid #1f77b4;
+                background-color: #F5F7F4;
+                border-left: 4px solid #006A4D;
                 padding: 20px;
                 border-radius: 5px;
                 margin: 10px 0;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 font-size: 16px;
                 line-height: 1.6;
+                border: 1px solid #E5E5E5;
             ">
-                <div style="color: #333; white-space: pre-wrap;">{self._format_script(result.content, result.emphasis_words)}</div>
+                <div style="color: #013826; white-space: pre-wrap;">{self._format_script(result.content, result.emphasis_words)}</div>
             </div>
             """
             st.markdown(script_html, unsafe_allow_html=True)
@@ -150,16 +151,16 @@ class VoiceDisplay(BaseChannelDisplay):
             # Word count and reading time
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("📊 Word Count", result.word_count)
+                st.metric("[COUNT] Word Count", result.word_count)
             with col2:
-                st.metric("⏱️ Speaking Pace", result.speaking_pace.title())
+                st.metric("[PACE] Speaking Pace", result.speaking_pace.title())
             with col3:
-                st.metric("🎯 Est. Duration", f"{result.duration_estimate:.1f}s")
+                st.metric("[TIME] Est. Duration", f"{result.duration_estimate:.1f}s")
         else:
             st.warning("No script generated")
         
         # Technical Details (collapsible)
-        with st.expander("🔧 Technical Details"):
+        with st.expander("[TECH] Technical Details"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -178,13 +179,13 @@ class VoiceDisplay(BaseChannelDisplay):
         
         # Personalization Elements
         if result.personalization_elements:
-            with st.expander(f"✨ Personalization ({len(result.personalization_elements)} elements)"):
+            with st.expander(f"[PERSONAL] Personalization ({len(result.personalization_elements)} elements)"):
                 for element in result.personalization_elements:
-                    st.write(f"• {element}")
+                    st.write(f"- {element}")
         
         # Validation Results
         if validation:
-            with st.expander("✅ Validation Results"):
+            with st.expander("[VALID] Validation Results"):
                 if validation.get('is_valid'):
                     st.success("Voice note passed all validation checks")
                 else:
@@ -193,12 +194,12 @@ class VoiceDisplay(BaseChannelDisplay):
                 if validation.get('achievements'):
                     st.markdown("**Achievements:**")
                     for achievement in validation['achievements']:
-                        st.write(f"✅ {achievement}")
+                        st.write(f"[SUCCESS] {achievement}")
                 
                 if validation.get('issues'):
                     st.markdown("**Issues:**")
                     for issue in validation['issues']:
-                        st.write(f"⚠️ {issue}")
+                        st.write(f"[WARNING] {issue}")
                 
                 if validation.get('metrics'):
                     st.markdown("**Metrics:**")
@@ -211,12 +212,12 @@ class VoiceDisplay(BaseChannelDisplay):
         # Highlight emphasis words
         for word in emphasis_words:
             formatted = formatted.replace(
-                word, 
-                f'<strong style="color: #1f77b4; background-color: #e8f4f8; padding: 2px 4px; border-radius: 3px;">{word}</strong>'
+                word,
+                f'<strong style="color: #006A4D; background-color: #F8F9FA; padding: 2px 4px; border-radius: 3px; border: 1px solid #E5E5E5;">{word}</strong>'
             )
         
         # Replace pauses with visual indicators
-        formatted = formatted.replace('...', '<em style="color: #666;">... [pause] ...</em>')
+        formatted = formatted.replace('...', '<em style="color: #013826;">... [pause] ...</em>')
         
         return formatted
     
