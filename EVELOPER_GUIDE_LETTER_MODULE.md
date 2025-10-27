@@ -177,7 +177,7 @@ Registered in England and Wales no. 2065. Authorised by the Prudential Regulatio
         
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-5-sonnet-20241022"  # Same model for consistency
+            self.model = "claude-haiku-4-5-20251001"  # Same model for consistency
             print("✅ Smart Letter Generator initialized with Claude AI")
         else:
             print("⚠️ Smart Letter Generator running in simulation mode")

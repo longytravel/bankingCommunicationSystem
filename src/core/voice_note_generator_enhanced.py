@@ -258,7 +258,7 @@ class SmartVoiceGenerator:
         # Initialize Claude for script generation
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-5-sonnet-20241022"
+            self.model = "claude-haiku-4-5-20251001"
             print("✅ Voice Generator: Claude AI ready")
         else:
             print("⚠️ Voice Generator: No Claude API")

@@ -86,9 +86,9 @@ class EmailRefiner:
         if self.api_key:
             try:
                 self.client = anthropic.Anthropic(api_key=self.api_key)
-                # Updated to Claude Sonnet 4 as requested
-                self.model = "claude-sonnet-4-20250514"
-                print("✅ Email Refiner initialized with Claude Sonnet 4")
+                # Updated to Claude Haiku 4.5 - Latest model
+                self.model = "claude-haiku-4-5-20251001"
+                print("✅ Email Refiner initialized with Claude Haiku 4.5")
             except Exception as e:
                 print(f"⚠️ Failed to initialize Claude client: {e}")
                 self.client = None

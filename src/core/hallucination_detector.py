@@ -111,8 +111,8 @@ class HallucinationDetector:
         if self.api_key:
             try:
                 self.client = anthropic.Anthropic(api_key=self.api_key)
-                # Use Claude Sonnet 4 - update with actual model name when available
-                self.model = "claude-3-5-sonnet-20241022"  # Will update to claude-sonnet-4-[date] when available
+                # Use Claude Haiku 4.5 - Latest model
+                self.model = "claude-haiku-4-5-20251001"
                 print("✅ Hallucination Detector initialized with Claude AI")
             except Exception as e:
                 print(f"⚠️ Failed to initialize Claude client: {e}")

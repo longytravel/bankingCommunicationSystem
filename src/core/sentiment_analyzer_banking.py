@@ -28,7 +28,7 @@ class BankingSentimentAnalyzer:
         try:
             self.client = anthropic.Anthropic(api_key=self.api_key)
             # USE THE LATEST MODEL
-            self.model = "claude-sonnet-4-20250514"  # Latest available model
+            self.model = "claude-haiku-4-5-20251001"  # Latest available model
             print(f"✅ Banking Sentiment Analyzer initialized with {self.model}")
         except Exception as e:
             raise ValueError(f"❌ Failed to initialize Claude: {e}")

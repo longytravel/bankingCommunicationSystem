@@ -44,7 +44,7 @@ class ContentValidator:
         
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-haiku-20240307"  # Fast model for validation
+            self.model = "claude-haiku-4-5-20251001"  # Fast model for validation
             print("✓ Content Validator using Claude AI")
         else:
             print("⚠️ Content Validator using pattern extraction fallback")

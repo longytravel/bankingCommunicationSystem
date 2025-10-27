@@ -36,7 +36,7 @@ class Config:
     # ============== API CONFIGURATION ==============
     # Claude API (Anthropic)
     CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
-    CLAUDE_MODEL = "claude-3-opus-20240229"
+    CLAUDE_MODEL = "claude-haiku-4-5-20251001"
     CLAUDE_MAX_TOKENS = 2000
     CLAUDE_TEMPERATURE = 0.7
     

@@ -1100,7 +1100,7 @@ with st.sidebar:
 
 # Footer
 st.markdown("---")
-footer_text = "🧠 Powered by Shared Brain Intelligence | Claude 3.5 Sonnet | Lloyds Banking Group"
+footer_text = "🧠 Powered by Shared Brain Intelligence | Claude Haiku 4.5 | Lloyds Banking Group"
 if not CORE_MODULES_AVAILABLE:
     footer_text += " | ⚠️ Limited Mode"
 

@@ -75,7 +75,7 @@ class AIDocumentClassifier:
         
         if self.api_key and ANTHROPIC_AVAILABLE:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-sonnet-4-20250514"  # Best balance of speed and intelligence
+            self.model = "claude-haiku-4-5-20251001"  # Best balance of speed and intelligence
             print("✅ AI Document Classifier initialized with Claude")
         else:
             print("⚠️ AI Document Classifier in mock mode")

@@ -131,7 +131,7 @@ class SharedBrain:
         
         if self.api_key:
             self.client = anthropic.Anthropic(api_key=self.api_key)
-            self.model = "claude-3-5-sonnet-20241022"  # Updated model name
+            self.model = "claude-haiku-4-5-20251001"  # Updated model name
             print("🧠 Shared Brain initialized with Claude AI")
         else:
             print("⚠️ Shared Brain running in simulation mode")
