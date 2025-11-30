@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Art of Planning | Session 2 - Building with AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --lloyds-green: #006A4D;
+            --lloyds-green-light: #00875F;
+            --lloyds-green-dark: #004D38;
+            --accent-gold: #FFB800;
+            --dark-bg: #0a0a0a;
+            --light-text: #ffffff;
+            --muted-text: #8a8a8a;
+            --slide-transition: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--dark-bg);
+            color: var(--light-text);
+            overflow: hidden;
+            min-height: 100vh;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--lloyds-green), var(--lloyds-green-light), var(--accent-gold));
+            z-index: 1000;
+            transition: width 0.3s ease;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 100;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .nav-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dot:hover {
+            background: rgba(255,255,255,0.6);
+            transform: scale(1.2);
+        }
+
+        .nav-dot.active {
+            background: var(--lloyds-green-light);
+            box-shadow: 0 0 20px var(--lloyds-green);
+        }
+
+        /* Slide counter */
+        .slide-counter {
+            position: fixed;
+            bottom: 30px;
+            right: 40px;
+            font-size: 14px;
+            color: var(--muted-text);
+            font-weight: 500;
+            z-index: 100;
+        }
+
+        /* Arrow navigation */
+        .arrow-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .arrow-nav:hover {
+            background: var(--lloyds-green);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .arrow-nav.prev { left: 30px; }
+        .arrow-nav.next { right: 30px; }
+
+        .arrow-nav svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        /* Slides Container */
+        .slides-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(100px);
+            transition: all var(--slide-transition);
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+        }
+
+        .slide.exit {
+            opacity: 0;
+            transform: translateX(-100px);
+        }
+
+        .slide-content {
+            max-width: 1200px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Typography */
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2rem, 4vw, 3.5rem);
+            font-weight: 600;
+            line-height: 1.2;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            font-size: clamp(1.5rem, 3vw, 2.5rem);
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        p {
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            line-height: 1.7;
+            color: rgba(255,255,255,0.85);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .subtitle {
+            font-size: clamp(1.1rem, 2vw, 1.5rem);
+            color: var(--lloyds-green-light);
+            font-weight: 500;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        /* Special text styles */
+        .highlight {
+            color: var(--lloyds-green-light);
+        }
+
+        .gold {
+            color: var(--accent-gold);
+        }
+
+        .quote {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(1.5rem, 3vw, 2.5rem);
+            font-style: italic;
+            line-height: 1.5;
+            color: rgba(255,255,255,0.9);
+            position: relative;
+            padding: 40px 60px;
+        }
+
+        .quote::before {
+            content: '"';
+            position: absolute;
+            top: 0;
+            left: 0;
+            font-size: 6rem;
+            color: var(--lloyds-green);
+            opacity: 0.5;
+            font-family: 'Playfair Display', serif;
+            line-height: 1;
+        }
+
+        .quote-author {
+            font-size: 1.1rem;
+            color: var(--muted-text);
+            margin-top: 20px;
+            font-style: normal;
+        }
+
+        /* Title slide */
+        .title-slide h1 {
+            font-size: clamp(3rem, 7vw, 6rem);
+            background: linear-gradient(135deg, #fff 0%, var(--lloyds-green-light) 50%, var(--accent-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 8s ease infinite;
+            background-size: 200% 200%;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .title-slide .tagline {
+            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            color: rgba(255,255,255,0.7);
+            margin-top: 30px;
+            font-weight: 300;
+        }
+
+        .presenter {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .presenter-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .presenter-title {
+            font-size: 1rem;
+            color: var(--muted-text);
+            margin-top: 8px;
+        }
+
+        /* Timeline */
+        .timeline {
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            margin: 50px 0;
+            position: relative;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            right: 10%;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            z-index: 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .timeline-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            margin-bottom: 15px;
+            transition: all 0.4s ease;
+        }
+
+        .timeline-item.active .timeline-dot {
+            background: var(--lloyds-green-light);
+            box-shadow: 0 0 30px var(--lloyds-green);
+            transform: scale(1.3);
+        }
+
+        .timeline-item.error .timeline-dot {
+            background: #ff4444;
+            box-shadow: 0 0 30px #ff4444;
+        }
+
+        .timeline-label {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            max-width: 100px;
+        }
+
+        .timeline-item.active .timeline-label {
+            color: var(--lloyds-green-light);
+            font-weight: 600;
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-top: 40px;
+            text-align: left;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: var(--lloyds-green);
+            transform: translateY(-5px);
+        }
+
+        .card-number {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--lloyds-green);
+            opacity: 0.5;
+            margin-bottom: 10px;
+        }
+
+        .card h4 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+        }
+
+        .card p {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.6);
+            text-align: left;
+        }
+
+        /* Feature list */
+        .feature-list {
+            list-style: none;
+            text-align: left;
+            max-width: 700px;
+            margin: 40px auto;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border-left: 4px solid var(--lloyds-green);
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--lloyds-green);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.2rem;
+        }
+
+        .feature-text h4 {
+            font-size: 1.1rem;
+            margin-bottom: 6px;
+        }
+
+        .feature-text p {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.6);
+            text-align: left;
+        }
+
+        /* Stats */
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            margin: 50px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            color: var(--lloyds-green-light);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--muted-text);
+            margin-top: 10px;
+        }
+
+        /* Split layout */
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            text-align: left;
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .split {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+        }
+
+        .split-visual {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 40px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .code-bad {
+            border-color: #ff4444;
+            background: rgba(255,68,68,0.05);
+        }
+
+        .code-good {
+            border-color: var(--lloyds-green);
+            background: rgba(0,106,77,0.1);
+        }
+
+        /* Comparison */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 30px;
+            align-items: center;
+            margin: 40px 0;
+        }
+
+        .comparison-side {
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .comparison-side.before {
+            background: rgba(255,68,68,0.1);
+            border: 1px solid rgba(255,68,68,0.3);
+        }
+
+        .comparison-side.after {
+            background: rgba(0,135,95,0.1);
+            border: 1px solid var(--lloyds-green);
+        }
+
+        .comparison-arrow {
+            font-size: 2rem;
+            color: var(--accent-gold);
+        }
+
+        /* CTA Button */
+        .cta-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--lloyds-green);
+            color: white;
+            padding: 18px 36px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 40px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .cta-button:hover {
+            background: var(--lloyds-green-light);
+            transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(0,106,77,0.4);
+        }
+
+        /* Act labels */
+        .act-label {
+            display: inline-block;
+            background: var(--lloyds-green);
+            color: white;
+            padding: 8px 24px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Animated elements */
+        .fade-in-up {
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.8s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .delay-1 { animation-delay: 0.2s; }
+        .delay-2 { animation-delay: 0.4s; }
+        .delay-3 { animation-delay: 0.6s; }
+        .delay-4 { animation-delay: 0.8s; }
+
+        /* Pulse animation */
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Typing effect container */
+        .typing-text {
+            border-right: 3px solid var(--lloyds-green-light);
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { border-color: transparent; }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .slide {
+                padding: 30px 20px 100px;
+            }
+
+            .arrow-nav {
+                display: none;
+            }
+
+            .nav {
+                bottom: 20px;
+                padding: 10px 16px;
+            }
+
+            .timeline {
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-row {
+                gap: 30px;
+            }
+
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+
+            .comparison-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* Keyboard hint */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            color: var(--muted-text);
+            opacity: 0.6;
+        }
+
+        .keyboard-hint kbd {
+            background: rgba(255,255,255,0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin: 0 4px;
+        }
+
+        /* Slide specific backgrounds */
+        .slide-gradient-1 {
+            background: radial-gradient(ellipse at top right, rgba(0,106,77,0.3) 0%, transparent 50%),
+                        radial-gradient(ellipse at bottom left, rgba(255,184,0,0.1) 0%, transparent 50%),
+                        var(--dark-bg);
+        }
+
+        .slide-gradient-2 {
+            background: radial-gradient(ellipse at center, rgba(0,106,77,0.2) 0%, transparent 60%),
+                        var(--dark-bg);
+        }
+
+        .slide-gradient-3 {
+            background: radial-gradient(ellipse at bottom right, rgba(255,68,68,0.15) 0%, transparent 50%),
+                        var(--dark-bg);
+        }
+
+        /* Architecture diagram */
+        .architecture {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .arch-box {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid var(--lloyds-green);
+            border-radius: 12px;
+            padding: 20px 40px;
+            font-weight: 600;
+            min-width: 250px;
+        }
+
+        .arch-arrow {
+            color: var(--lloyds-green-light);
+            font-size: 1.5rem;
+        }
+
+        .arch-branches {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .arch-branch {
+            background: rgba(0,106,77,0.2);
+            border: 1px solid var(--lloyds-green);
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 0.9rem;
+        }
+
+        /* Logo placeholder */
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: var(--lloyds-green);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <button class="arrow-nav prev" onclick="prevSlide()" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+    </button>
+    <button class="arrow-nav next" onclick="nextSlide()" aria-label="Next slide">
+        <svg viewBox="0 0 24 24"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+    </button>
+
+    <div class="slide-counter"><span id="currentSlide">1</span> / <span id="totalSlides">20</span></div>
+
+    <div class="keyboard-hint">
+        Use <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to navigate
+    </div>
+
+    <div class="nav" id="navDots"></div>
+
+    <div class="slides-container" id="slidesContainer">
+
+        <!-- Slide 1: Title -->
+        <div class="slide slide-gradient-1 active title-slide" data-slide="1">
+            <div class="slide-content">
+                <div class="logo">L</div>
+                <p class="subtitle">Session 2</p>
+                <h1>The Art of Planning</h1>
+                <p class="tagline">How I Stopped Fighting AI and Started Shipping</p>
+                <p style="margin-top: 20px; font-size: 1.1rem; color: var(--muted-text);">
+                    A 60-Minute Journey from "I Can't" to "I'm Building"
+                </p>
+                <div class="presenter">
+                    <p class="presenter-name">Presented by Longy</p>
+                    <p class="presenter-title">AI-Assisted Development Journey</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Opening Quote -->
+        <div class="slide slide-gradient-2" data-slide="2">
+            <div class="slide-content">
+                <div class="quote">
+                    There's a new kind of coding I call 'vibe coding', where you fully give in to the vibes, embrace exponentials, and forget that the code even exists.
+                    <div class="quote-author">— Andrej Karpathy, Co-founder of OpenAI, February 2025</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: The Hook -->
+        <div class="slide" data-slide="3">
+            <div class="slide-content">
+                <h1 style="font-size: clamp(2rem, 5vw, 4rem);">"Six months ago,<br><span class="highlight">I was terrified of this.</span>"</h1>
+                <p style="margin-top: 40px; font-size: 1.3rem;">
+                    Not a humble-brag confession. A real one.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 4: The Confession -->
+        <div class="slide" data-slide="4">
+            <div class="slide-content">
+                <h2>I thought building software was for<br>"the technical people"</h2>
+                <p style="margin-top: 30px;">
+                    "I'll wait for IT."<br><br>
+                    I wasn't just nervous. I was convinced there was something fundamentally different about people who could make software—<span class="highlight">some gene I didn't have.</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 5: The Mindset Shift Teaser -->
+        <div class="slide slide-gradient-1" data-slide="5">
+            <div class="slide-content">
+                <h2>Then I discovered something that<br><span class="gold">changed everything</span></h2>
+                <p style="margin-top: 30px; font-size: 1.4rem;">
+                    Not a secret tool. Not a hack.<br><br>
+                    <strong>A mindset shift.</strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 6: Three Acts Overview -->
+        <div class="slide" data-slide="6">
+            <div class="slide-content">
+                <h2>The Hero's Journey</h2>
+                <p style="margin-bottom: 40px;">You walk in thinking "I'm not technical enough."<br>You walk out knowing the secret.</p>
+                <div class="cards-grid" style="max-width: 900px; margin: 0 auto;">
+                    <div class="card">
+                        <div class="card-number">1</div>
+                        <h4>I Was You</h4>
+                        <p>The confession, the crash, the 20-hour nightmare</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-number">2</div>
+                        <h4>What AI Actually Needs</h4>
+                        <p>The revelation, the framework, the mindset shift</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-number">3</div>
+                        <h4>You Becoming Builders</h4>
+                        <p>The proof, the practice, the transformation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: ACT 1 - The Disaster Story -->
+        <div class="slide slide-gradient-3" data-slide="7">
+            <div class="slide-content">
+                <span class="act-label">Act 1</span>
+                <h1>The Banking<br>Communication System</h1>
+                <p style="margin-top: 30px;">
+                    The idea was beautiful: transform boring standardised bank letters into<br>
+                    <span class="highlight">personalised digital voice notes</span>.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 8: The Timeline -->
+        <div class="slide" data-slide="8">
+            <div class="slide-content">
+                <h2>My Journey</h2>
+                <div class="timeline">
+                    <div class="timeline-item active">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-label">Excitement</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-label">Frustration</div>
+                    </div>
+                    <div class="timeline-item error">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-label">Bug-fix Hell</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-label">Breakthrough</div>
+                    </div>
+                    <div class="timeline-item active">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-label">Clarity</div>
+                    </div>
+                </div>
+                <p style="margin-top: 40px;">
+                    Day one: AI generates beautiful code. "I'm going to ship this in a weekend!"
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 9: The Fall -->
+        <div class="slide" data-slide="9">
+            <div class="slide-content">
+                <h2>Then Reality Hit</h2>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-number" style="color: #ff4444;">1000+</div>
+                        <div class="stat-label">Lines of tangled code</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" style="color: #ff4444;">20</div>
+                        <div class="stat-label">Hours burned</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" style="color: #ff4444;">0</div>
+                        <div class="stat-label">Features shipped</div>
+                    </div>
+                </div>
+                <p style="margin-top: 40px; font-style: italic;">
+                    "Copy. Paste. Copy. Paste. Like it's 1998."
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 10: The Diagnosis -->
+        <div class="slide slide-gradient-2" data-slide="10">
+            <div class="slide-content">
+                <h2>The Diagnosis</h2>
+                <p style="font-size: 1.6rem; margin-bottom: 40px;">
+                    I didn't have an <span style="color: #ff4444;">AI problem</span>.
+                </p>
+                <h1 style="font-size: clamp(2rem, 4vw, 3.5rem);">
+                    I had a <span class="highlight">planning problem</span>.
+                </h1>
+                <p style="margin-top: 40px;">
+                    The AI wasn't broken. I was asking it to hold 1,000 lines of context in its head.<br>
+                    I'd filled the "whiteboard" to bursting.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 11: ACT 2 - Eisenhower Quote -->
+        <div class="slide slide-gradient-1" data-slide="11">
+            <div class="slide-content">
+                <span class="act-label">Act 2</span>
+                <div class="quote">
+                    Plans are useless, but planning is indispensable.
+                    <div class="quote-author">— Dwight D. Eisenhower</div>
+                </div>
+                <p style="margin-top: 30px;">
+                    The plan will change. But planning forces you to break work into pieces.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 12: The Revelation -->
+        <div class="slide" data-slide="12">
+            <div class="slide-content">
+                <h1>The Mindset Shift</h1>
+                <div class="comparison" style="margin-top: 50px;">
+                    <div class="comparison-side before">
+                        <h3 style="color: #ff4444;">Before</h3>
+                        <p>You as coder,<br>fighting with AI</p>
+                    </div>
+                    <div class="comparison-arrow">→</div>
+                    <div class="comparison-side after">
+                        <h3 style="color: var(--lloyds-green-light);">After</h3>
+                        <p>AI as developer,<br><strong>You as architect</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 13: English Programming -->
+        <div class="slide" data-slide="13">
+            <div class="slide-content">
+                <div class="quote">
+                    The hottest new programming language is English.
+                    <div class="quote-author">— Andrej Karpathy, 2023</div>
+                </div>
+                <p style="margin-top: 40px;">
+                    Architects don't lay bricks. They design the structure.<br>
+                    <span class="highlight">That's you now.</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 14: The 5 Things -->
+        <div class="slide" data-slide="14">
+            <div class="slide-content">
+                <h2>The 5 Things AI Needs You to Plan</h2>
+                <ul class="feature-list">
+                    <li>
+                        <div class="feature-icon">1</div>
+                        <div class="feature-text">
+                            <h4>A Clear Problem Statement</h4>
+                            <p>Not "build something cool" — the job to be done</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="feature-icon">2</div>
+                        <div class="feature-text">
+                            <h4>Small Pieces (Modules)</h4>
+                            <p>Each piece fits on the "whiteboard"</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="feature-icon">3</div>
+                        <div class="feature-text">
+                            <h4>Inputs & Outputs (Contracts)</h4>
+                            <p>"Takes X, produces Y" — clear and testable</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="feature-icon">4</div>
+                        <div class="feature-text">
+                            <h4>Build Order (Dependencies)</h4>
+                            <p>Safety first, fancy features later</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="feature-icon">5</div>
+                        <div class="feature-text">
+                            <h4>Verification Strategy</h4>
+                            <p>How will you know it's working?</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 15: ACT 3 - The Proof -->
+        <div class="slide slide-gradient-1" data-slide="15">
+            <div class="slide-content">
+                <span class="act-label">Act 3</span>
+                <h1>The Proof</h1>
+                <p style="margin-top: 20px; font-size: 1.3rem;">
+                    This entire presentation was built with AI<br>using the <span class="highlight">same methodology</span> I'm teaching you.
+                </p>
+                <div class="stats-row" style="margin-top: 50px;">
+                    <div class="stat">
+                        <div class="stat-number">47</div>
+                        <div class="stat-label">User Stories</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">6</div>
+                        <div class="stat-label">Epics</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">∞</div>
+                        <div class="stat-label">Possibilities</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 16: The Architecture -->
+        <div class="slide" data-slide="16">
+            <div class="slide-content">
+                <h2>The Banking System - Rebuilt Right</h2>
+                <div class="architecture">
+                    <div class="arch-box">Original Letter / Document</div>
+                    <div class="arch-arrow">↓</div>
+                    <div class="arch-box" style="background: var(--lloyds-green); color: white;">SharedBrain (Analyze Once)</div>
+                    <div class="arch-arrow">↓</div>
+                    <div class="arch-branches">
+                        <div class="arch-branch">📧 Email</div>
+                        <div class="arch-branch">💬 SMS</div>
+                        <div class="arch-branch">📄 Letter</div>
+                        <div class="arch-branch">🎙️ Voice</div>
+                    </div>
+                </div>
+                <p style="margin-top: 30px;">
+                    <span class="gold">Analyze once, generate many times.</span><br>
+                    60-80% fewer API calls. Perfect consistency.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 17: The Statistics -->
+        <div class="slide" data-slide="17">
+            <div class="slide-content">
+                <h2>The World Is Changing</h2>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-number">25%</div>
+                        <div class="stat-label">Y Combinator W2025 startups<br>with 95%+ AI-generated code</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">75%</div>
+                        <div class="stat-label">Replit customers<br>who never write code</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">4.5M+</div>
+                        <div class="stat-label">Views on Karpathy's<br>"vibe coding" tweet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 18: The Template -->
+        <div class="slide" data-slide="18">
+            <div class="slide-content">
+                <h2>The 1-Page AI Project Plan</h2>
+                <div class="split" style="margin-top: 30px;">
+                    <div>
+                        <ul class="feature-list" style="margin: 0;">
+                            <li>
+                                <div class="feature-icon">📋</div>
+                                <div class="feature-text">
+                                    <h4>The Problem</h4>
+                                    <p>One sentence. Clear constraint.</p>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="feature-icon">✓</div>
+                                <div class="feature-text">
+                                    <h4>Success Criteria</h4>
+                                    <p>Measurable outcomes</p>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="feature-icon">🧩</div>
+                                <div class="feature-text">
+                                    <h4>The Pieces</h4>
+                                    <p>Modular components</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="split-visual code-good">
+                        <p style="color: var(--lloyds-green-light); margin-bottom: 15px;">Example:</p>
+                        <p><strong>Problem:</strong> Convert bank letters into personalized voice notes</p>
+                        <p style="margin-top: 10px;"><strong>Success:</strong> &lt;3s load, 95% accuracy</p>
+                        <p style="margin-top: 10px;"><strong>Pieces:</strong></p>
+                        <p>• Personalization Engine</p>
+                        <p>• Voice Converter</p>
+                        <p>• Hallucination Detector</p>
+                        <p>• Delivery Queue</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 19: The Transformation -->
+        <div class="slide slide-gradient-2" data-slide="19">
+            <div class="slide-content">
+                <h1>The Transformation</h1>
+                <p style="font-size: 1.4rem; margin: 30px 0;">
+                    Planning isn't overhead.<br>
+                    <span class="gold">With AI, planning is the shortcut.</span>
+                </p>
+                <div class="comparison" style="margin-top: 40px;">
+                    <div class="comparison-side before">
+                        <h3 style="color: #ff4444; font-size: 1.1rem;">"I'm not technical enough"</h3>
+                    </div>
+                    <div class="comparison-arrow">→</div>
+                    <div class="comparison-side after">
+                        <h3 style="color: var(--lloyds-green-light); font-size: 1.1rem;">"I'm building"</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 20: Final -->
+        <div class="slide slide-gradient-1" data-slide="20">
+            <div class="slide-content">
+                <h1 style="font-size: clamp(2rem, 5vw, 4rem);">You don't need to become<br>a hardcore developer.</h1>
+                <p style="font-size: 1.5rem; margin: 40px 0;">
+                    You need to become <span class="highlight">ruthless about planning clearly</span>.
+                </p>
+                <p style="font-size: 1.3rem; color: rgba(255,255,255,0.7);">
+                    Let AI be the one typing late into the night.<br>
+                    <strong>Your job is to tell it what to build<br>and how you'll know it worked.</strong>
+                </p>
+                <div style="margin-top: 50px;">
+                    <p class="gold" style="font-size: 1.5rem; font-weight: 600;">
+                        That's how you go from "I can't" to "I'm building."
+                    </p>
+                </div>
+                <p style="margin-top: 60px; font-size: 1.2rem;">
+                    See you in Session 3 →
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Slide navigation
+        let currentSlide = 1;
+        const totalSlides = 20;
+        const slidesContainer = document.getElementById('slidesContainer');
+        const slides = document.querySelectorAll('.slide');
+        const navDotsContainer = document.getElementById('navDots');
+        const progressBar = document.getElementById('progressBar');
+
+        // Create navigation dots
+        for (let i = 1; i <= totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.className = `nav-dot${i === 1 ? ' active' : ''}`;
+            dot.onclick = () => goToSlide(i);
+            navDotsContainer.appendChild(dot);
+        }
+
+        function updateProgress() {
+            const progress = (currentSlide / totalSlides) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        function updateSlideCounter() {
+            document.getElementById('currentSlide').textContent = currentSlide;
+            document.getElementById('totalSlides').textContent = totalSlides;
+        }
+
+        function updateNavDots() {
+            document.querySelectorAll('.nav-dot').forEach((dot, index) => {
+                dot.classList.toggle('active', index + 1 === currentSlide);
+            });
+        }
+
+        function goToSlide(n) {
+            if (n < 1 || n > totalSlides || n === currentSlide) return;
+
+            const currentSlideEl = document.querySelector('.slide.active');
+            const nextSlideEl = slides[n - 1];
+
+            // Determine direction
+            const goingForward = n > currentSlide;
+
+            // Exit current slide
+            currentSlideEl.classList.remove('active');
+            currentSlideEl.classList.add('exit');
+
+            // Set up next slide
+            nextSlideEl.style.transform = goingForward ? 'translateX(100px)' : 'translateX(-100px)';
+
+            // Small delay then show next slide
+            setTimeout(() => {
+                currentSlideEl.classList.remove('exit');
+                nextSlideEl.classList.add('active');
+            }, 50);
+
+            currentSlide = n;
+            updateProgress();
+            updateSlideCounter();
+            updateNavDots();
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                goToSlide(currentSlide + 1);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                goToSlide(currentSlide - 1);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowRight':
+                case ' ':
+                case 'Enter':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    goToSlide(1);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    goToSlide(totalSlides);
+                    break;
+            }
+        });
+
+        // Touch/swipe support
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = touchStartX - touchEndX;
+
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    nextSlide();
+                } else {
+                    prevSlide();
+                }
+            }
+        }
+
+        // Initialize
+        updateProgress();
+        updateSlideCounter();
+
+        // Hide keyboard hint after first interaction
+        let hintShown = true;
+        document.addEventListener('keydown', () => {
+            if (hintShown) {
+                document.querySelector('.keyboard-hint').style.opacity = '0';
+                hintShown = false;
+            }
+        });
+    </script>
+</body>
+</html>
